@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  # Lets a dry run be triggered by hand before the first real publish.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-wheels:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux x86_64
+            os: ubuntu-latest
+            cibw_archs: x86_64
+          - name: linux aarch64
+            os: ubuntu-latest
+            cibw_archs: aarch64
+          - name: macOS x86_64
+            # macos-13 was retired in December 2025; macos-15-intel is the
+            # replacement and is the last x86_64 macOS image GitHub offers.
+            os: macos-15-intel
+            cibw_archs: x86_64
+          - name: macOS arm64
+            os: macos-latest
+            cibw_archs: arm64
+          - name: windows x86_64
+            os: windows-latest
+            cibw_archs: AMD64
+          - name: windows arm64
+            os: windows-11-arm
+            cibw_archs: ARM64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+
+      - uses: pypa/cibuildwheel@v2.21.3
+        env:
+          # pyo3 is built with abi3-py310, so a single wheel per platform serves
+          # every supported interpreter. Without this cibuildwheel would rebuild
+          # once per Python version and publish a wheel per version, which is
+          # both slower and redundant.
+          CIBW_BUILD: "cp310-*"
+          CIBW_ARCHS: ${{ matrix.cibw_archs }}
+        with:
+          output-dir: dist
+
+  build-sdist:
+    name: sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the source distribution
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+          python -m build --sdist
+
+      # Publish only what PyPI would accept. A metadata mistake should fail here
+      # rather than partway through an upload.
+      - name: Check the sdist
+        run: |
+          python -m pip install twine
+          python -m twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    name: publish to PyPI
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/polars-ros
+    permissions:
+      # Trusted Publishing exchanges this OIDC token for an upload token, so no
+      # API token is stored in the repository.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          # "*" not "*-*": the sdist artifact is named `sdist`, which a
+          # dash-containing pattern would silently skip, publishing wheels
+          # without a source distribution.
+          pattern: "*"
+          merge-multiple: true
+
+      - name: List what will be uploaded
+        run: ls -l dist
+
+      - name: Check every artifact before uploading
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install twine
+          python -m twine check --strict dist/*
+
+      - name: Upload to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Sigstore attestations are already on by default for Trusted
+          # Publishing; set explicitly so the intent survives future changes.
+          # Requires Trusted Publishing, and is tied to the same OIDC identity.
+          attestations: true
