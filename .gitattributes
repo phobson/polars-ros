@@ -1,0 +1,21 @@
+# Store text files with LF in the repository and check them out with LF on every
+# platform, so line endings never depend on each developer's core.autocrlf.
+* text=auto eol=lf
+
+# The vendored wqio test data includes PNGs and pickle files. `text=auto`
+# sniffs content and would skip these anyway; naming them explicitly keeps that
+# guarantee from depending on the sniffer.
+*.png    binary
+*.pkl    binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+
+# Compiled extension output, in case any is ever tracked.
+*.dll    binary
+*.dylib  binary
+*.so     binary
+*.pyd    binary
+*.pdb    binary
+*.whl    binary
+*.exe    binary

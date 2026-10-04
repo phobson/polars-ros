@@ -1,0 +1,10 @@
+[toolchain]
+# Pinned because `sysinfo 0.39.6` requires rustc >= 1.95, and because 1.99 is
+# blocked on this machine by a Defender Exploit Guard rule (the rule covers
+# rustc.exe/cargo.exe but not clippy-driver.exe). tools/msvc-env.ps1 puts the
+# same version on PATH so plain `cargo` and `cargo +<version>` agree.
+channel = "1.95.0"
+
+# Kept in the manifest so `cargo clippy` and `cargo fmt` work from a bare
+# `rustup toolchain install`, without a separate manual step.
+components = ["clippy", "rustfmt"]

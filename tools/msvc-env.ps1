@@ -9,17 +9,25 @@
 #    The 1.95.0 toolchain bin directory goes first on PATH so the rustup proxy
 #    -- which would dispatch to the blocked default toolchain -- is never used.
 #
+#    Note the blocker covers `rustc.exe`/`cargo.exe` but NOT `clippy-driver.exe`,
+#    so linting works on 1.99 too. 1.95.0 is used regardless, to keep one
+#    toolchain authoritative for build, test and lint.
+#
 # 2. There is no Visual Studio C++ build tools install and no Windows 10/11 SDK.
 #    Visual Studio 2022 Community does ship a VS2017-era toolset and a matching
 #    SDK under SDK\ScopeCppSDK\vc15, which is what `cl.exe` needs to compile the
 #    C shims in `stacker` and `zstd`.
 #
 # Usage:  . tools\msvc-env.ps1      (dot-source, so the env changes stick)
+#
+# Cargo is pinned at 1.95.0 via PATH, so `cargo clippy` and `cargo fmt` find the
+# matching `cargo-clippy.exe`/`cargo-fmt.exe` beside it. CARGO_HOME stays on the
+# alternate dir purely to reuse the already-populated registry cache.
 
-$toolchain = 'C:\Users\phobson\.rustup-alt\toolchains\1.95.0-x86_64-pc-windows-msvc\bin'
+$toolchain = 'C:\Users\phobson\scoop\persist\rustup\.rustup\toolchains\1.95.0-x86_64-pc-windows-msvc\bin'
 $vc15      = 'C:\Program Files\Microsoft Visual Studio\2022\Community\SDK\ScopeCppSDK\vc15'
 
-$env:RUSTUP_HOME = 'C:\Users\phobson\.rustup-alt'
+$env:RUSTUP_HOME = 'C:\Users\phobson\scoop\persist\rustup\.rustup'
 $env:CARGO_HOME  = 'C:\Users\phobson\.cargo-alt'
 # Stop rustup from helpfully auto-installing the blocked default toolchain.
 $env:RUSTUP_AUTO_INSTALL = '0'

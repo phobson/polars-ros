@@ -67,10 +67,7 @@ impl BootstrapOptions {
 
     /// The two confidence limits, expressed as percentiles.
     fn percentiles(&self) -> [f64; 2] {
-        [
-            100.0 * self.alpha * 0.5,
-            100.0 * (1.0 - self.alpha * 0.5),
-        ]
+        [100.0 * self.alpha * 0.5, 100.0 * (1.0 - self.alpha * 0.5)]
     }
 }
 
@@ -126,10 +123,7 @@ pub fn acceleration(data: &[f64]) -> f64 {
 pub type Ci = [f64; 2];
 
 /// Percentile bootstrap interval.
-pub fn percentile_ci(
-    boot_stats: &[f64],
-    opts: &BootstrapOptions,
-) -> PolarsResult<Ci> {
+pub fn percentile_ci(boot_stats: &[f64], opts: &BootstrapOptions) -> PolarsResult<Ci> {
     let mut sorted = boot_stats.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let [lo_p, hi_p] = opts.percentiles();
@@ -140,11 +134,7 @@ pub fn percentile_ci(
 ///
 /// `boot_stats` must come from the same resample used for `data`, so that the
 /// fallback to the percentile interval reuses the identical draws.
-pub fn bca_ci(
-    data: &[f64],
-    boot_stats: &[f64],
-    opts: &BootstrapOptions,
-) -> PolarsResult<Ci> {
+pub fn bca_ci(data: &[f64], boot_stats: &[f64], opts: &BootstrapOptions) -> PolarsResult<Ci> {
     let niter = boot_stats.len();
     let primary = opts.statistic.apply(data);
     let boot_result = mean(boot_stats);
@@ -172,7 +162,10 @@ pub fn bca_ci(
 
     let mut sorted = boot_stats.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let ci = [percentile(&sorted, new_alpha[0]), percentile(&sorted, new_alpha[1])];
+    let ci = [
+        percentile(&sorted, new_alpha[0]),
+        percentile(&sorted, new_alpha[1]),
+    ];
 
     // wqio falls back to the percentile method when the interval does not
     // contain the bootstrap mean. Re-using the same resample keeps that
@@ -233,7 +226,10 @@ pub fn bootstrap_fit(
     let inv = |v: f64| if ylog { libm::exp(v) } else { v };
 
     let main = fit_line(x, y, xlog, ylog)?;
-    let yhat: Vec<f64> = x.iter().map(|x_i| inv(main.0 * fwd(*x_i) + main.1)).collect();
+    let yhat: Vec<f64> = x
+        .iter()
+        .map(|x_i| inv(main.0 * fwd(*x_i) + main.1))
+        .collect();
 
     let mut rng = make_rng(opts.seed)?;
     let mut params = Vec::with_capacity(opts.niter);
@@ -272,8 +268,14 @@ pub fn bootstrap_fit(
 
 /// `(slope, intercept)` for `y ~ x`, optionally in log space.
 fn fit_line(x: &[f64], y: &[f64], xlog: bool, ylog: bool) -> PolarsResult<(f64, f64)> {
-    let xs: Vec<f64> = x.iter().map(|v| if xlog { libm::log(*v) } else { *v }).collect();
-    let ys: Vec<f64> = y.iter().map(|v| if ylog { libm::log(*v) } else { *v }).collect();
+    let xs: Vec<f64> = x
+        .iter()
+        .map(|v| if xlog { libm::log(*v) } else { *v })
+        .collect();
+    let ys: Vec<f64> = y
+        .iter()
+        .map(|v| if ylog { libm::log(*v) } else { *v })
+        .collect();
     linregress(&xs, &ys).ok_or_else(|| {
         polars_err!(ComputeError:
             "the predictor has no variation, so a line cannot be fitted")
@@ -354,10 +356,13 @@ impl BootstrapKwargs {
 }
 
 fn ci_output_type(_input_fields: &[Field]) -> PolarsResult<Field> {
-    Ok(Field::new("ci".into(), DataType::Struct(vec![
-        Field::new("lower".into(), DataType::Float64),
-        Field::new("upper".into(), DataType::Float64),
-    ])))
+    Ok(Field::new(
+        "ci".into(),
+        DataType::Struct(vec![
+            Field::new("lower".into(), DataType::Float64),
+            Field::new("upper".into(), DataType::Float64),
+        ]),
+    ))
 }
 
 fn fit_output_type(_input_fields: &[Field]) -> PolarsResult<Field> {
@@ -365,7 +370,10 @@ fn fit_output_type(_input_fields: &[Field]) -> PolarsResult<Field> {
         .into_iter()
         .map(|name| Field::new(name.into(), DataType::Float64))
         .collect::<Vec<_>>();
-    Ok(Field::new("bootstrapped_fit".into(), DataType::Struct(inner)))
+    Ok(Field::new(
+        "bootstrapped_fit".into(),
+        DataType::Struct(inner),
+    ))
 }
 
 fn values(s: &Series) -> PolarsResult<Vec<f64>> {
@@ -453,7 +461,11 @@ mod tests {
         };
         let [lo, hi] = bootstrap_ci(&data, &opts).unwrap();
         assert!(lo < hi);
-        assert!(lo < mean(&data) && mean(&data) < hi, "{lo} {} {hi}", mean(&data));
+        assert!(
+            lo < mean(&data) && mean(&data) < hi,
+            "{lo} {} {hi}",
+            mean(&data)
+        );
     }
 
     #[test]

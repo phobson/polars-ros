@@ -49,16 +49,6 @@ impl FromStr for Transform {
 }
 
 impl Transform {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Identity => "identity",
-            Self::Log => "log",
-            Self::Exp => "exp",
-            Self::Sqrt => "sqrt",
-            Self::Square => "square",
-        }
-    }
-
     pub fn apply(self, v: f64) -> f64 {
         match self {
             Self::Identity => v,
@@ -92,10 +82,6 @@ pub struct Cohn {
 }
 
 impl Cohn {
-    pub fn len(&self) -> usize {
-        self.lower_dl.len()
-    }
-
     pub fn is_empty(&self) -> bool {
         self.lower_dl.is_empty()
     }
@@ -129,7 +115,10 @@ pub fn compute_cohn_numbers(result: &[Option<f64>], censored: &[bool]) -> Cohn {
             }
         }
     }
-    dls.sort_by(|a, b| a.partial_cmp(b).expect("detection limits must be comparable"));
+    dls.sort_by(|a, b| {
+        a.partial_cmp(b)
+            .expect("detection limits must be comparable")
+    });
 
     if !dls.is_empty() {
         // Anything below the smallest detection limit becomes its own row.
@@ -172,7 +161,7 @@ pub fn compute_cohn_numbers(result: &[Option<f64>], censored: &[bool]) -> Cohn {
                         } else {
                             *v < lo
                         }
-                    },
+                    }
                     None => false,
                 })
                 .count() as f64,
@@ -224,7 +213,10 @@ pub fn compute_detection_limit_indices(
     result: &[Option<f64>],
     lower_dl: &[f64],
 ) -> PolarsResult<Vec<usize>> {
-    result.iter().map(|v| detection_limit_index(*v, lower_dl)).collect()
+    result
+        .iter()
+        .map(|v| detection_limit_index(*v, lower_dl))
+        .collect()
 }
 
 /// 1-based running count within each `(detection limit index, censored)` group.
@@ -261,8 +253,7 @@ pub fn compute_plotting_positions(
         } else {
             positions.push(
                 (1.0 - pe_here)
-                    + (pe_here - cohn.pe_below(i)) * rank as f64
-                        / (cohn.nuncen_above[i] + 1.0),
+                    + (pe_here - cohn.pe_below(i)) * rank as f64 / (cohn.nuncen_above[i] + 1.0),
             );
         }
     }
@@ -273,11 +264,16 @@ pub fn compute_plotting_positions(
         .filter(|(c, _)| **c)
         .map(|(_, p)| *p)
         .collect();
-    nd.sort_by(|a, b| a.partial_cmp(b).expect("plotting positions must be comparable"));
+    nd.sort_by(|a, b| {
+        a.partial_cmp(b)
+            .expect("plotting positions must be comparable")
+    });
     let mut nd_iter = nd.into_iter();
     for (is_censored, slot) in censored.iter().zip(positions.iter_mut()) {
         if *is_censored {
-            *slot = nd_iter.next().expect("one plotting position per censored row");
+            *slot = nd_iter
+                .next()
+                .expect("one plotting position per censored row");
         }
     }
 
@@ -347,7 +343,6 @@ pub struct RosDetail {
     pub order: Vec<usize>,
     pub result: Vec<f64>,
     pub censored: Vec<bool>,
-    pub cohn: Cohn,
     pub det_limit_index: Vec<usize>,
     pub rank: Vec<u32>,
     pub plot_pos: Vec<f64>,
@@ -417,9 +412,11 @@ pub fn do_ros(
 
     Ok(RosDetail {
         order,
-        result: sorted_result.iter().map(|v| v.unwrap_or(f64::NAN)).collect(),
+        result: sorted_result
+            .iter()
+            .map(|v| v.unwrap_or(f64::NAN))
+            .collect(),
         censored: sorted_censored,
-        cohn,
         det_limit_index,
         rank,
         plot_pos,
@@ -523,7 +520,11 @@ pub fn substitute(
         .zip(censored)
         .map(|(v, c)| {
             v.map(|v| {
-                let v = if *c { v * opts.substitution_fraction } else { v };
+                let v = if *c {
+                    v * opts.substitution_fraction
+                } else {
+                    v
+                };
                 apply_floor(v, opts.floor)
             })
         })
@@ -768,8 +769,10 @@ fn is_valid(inputs: &[Series], kwargs: ValidityKwargs) -> PolarsResult<Series> {
         ..Default::default()
     };
     let (enough, not_too_many) = validity(&censored, &opts);
-    Ok(BooleanChunked::from_slice(inputs[0].name().clone(), &[enough && not_too_many])
-        .into_series())
+    Ok(
+        BooleanChunked::from_slice(inputs[0].name().clone(), &[enough && not_too_many])
+            .into_series(),
+    )
 }
 
 /// `pl.ros.impute(result, censorship)`
@@ -779,7 +782,10 @@ fn impute_expr(inputs: &[Series], kwargs: ImputeKwargs) -> PolarsResult<Series> 
     let result = as_f64(&inputs[0], "result")?;
     let censored = as_bool_lenient(&inputs[1], "censorship")?;
     let values = impute(&result, &censored, &kwargs.options()?)?;
-    Ok(Float64Chunked::from_iter_options(inputs[0].name().clone(), values.into_iter()).into_series())
+    Ok(
+        Float64Chunked::from_iter_options(inputs[0].name().clone(), values.into_iter())
+            .into_series(),
+    )
 }
 
 /// `pl.ros.substitute(result, censorship)` -- the simple-substitution fallback
@@ -790,7 +796,10 @@ fn substitute_expr(inputs: &[Series], kwargs: ImputeKwargs) -> PolarsResult<Seri
     let result = as_f64(&inputs[0], "result")?;
     let censored = as_bool_lenient(&inputs[1], "censorship")?;
     let values = substitute(&result, &censored, &kwargs.options()?);
-    Ok(Float64Chunked::from_iter_options(inputs[0].name().clone(), values.into_iter()).into_series())
+    Ok(
+        Float64Chunked::from_iter_options(inputs[0].name().clone(), values.into_iter())
+            .into_series(),
+    )
 }
 
 /// `pl.ros.impute_details(result, censorship)` -- every ROS intermediate column,
@@ -918,7 +927,10 @@ mod tests {
         let cohn = compute_cohn_numbers(&result, &censored);
         assert_eq!(detection_limit_index(Some(3.5), &cohn.lower_dl).unwrap(), 0);
         assert_eq!(detection_limit_index(Some(6.0), &cohn.lower_dl).unwrap(), 3);
-        assert_eq!(detection_limit_index(Some(12.0), &cohn.lower_dl).unwrap(), 5);
+        assert_eq!(
+            detection_limit_index(Some(12.0), &cohn.lower_dl).unwrap(),
+            5
+        );
         assert!(detection_limit_index(Some(0.0), &cohn.lower_dl).is_err());
     }
 
@@ -931,7 +943,10 @@ mod tests {
         // fixture pins the behaviour the pipeline actually depends on.
         let dl_idx = vec![0usize, 0, 0, 1, 1, 1];
         let censored = vec![false, false, true, true, true, false];
-        assert_eq!(compute_group_rank(&dl_idx, &censored), vec![1, 2, 1, 1, 2, 1]);
+        assert_eq!(
+            compute_group_rank(&dl_idx, &censored),
+            vec![1, 2, 1, 1, 2, 1]
+        );
     }
 
     #[test]
@@ -994,9 +1009,9 @@ mod tests {
             .collect();
         values.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mut expected = vec![
-            5.0, 5.0, 5.0, 5.0, 5.0, 6.14010906, 6.97841457, 5.0, 5.0, 5.0, 5.57, 5.66, 5.86,
-            6.65, 6.78, 6.79, 7.5, 7.5, 7.5, 8.63, 8.71, 8.99, 9.85, 10.82, 11.25, 11.25, 12.2,
-            14.92, 16.77, 17.81, 19.16, 19.19, 19.64, 20.18, 22.97,
+            5.0, 5.0, 5.0, 5.0, 5.0, 6.14010906, 6.97841457, 5.0, 5.0, 5.0, 5.57, 5.66, 5.86, 6.65,
+            6.78, 6.79, 7.5, 7.5, 7.5, 8.63, 8.71, 8.99, 9.85, 10.82, 11.25, 11.25, 12.2, 14.92,
+            16.77, 17.81, 19.16, 19.19, 19.64, 20.18, 22.97,
         ];
         expected.sort_by(|a, b| a.partial_cmp(b).unwrap());
         assert_eq!(values.len(), expected.len());

@@ -17,28 +17,16 @@ pub fn as_f64_dense(s: &Series, name: &str) -> PolarsResult<Vec<f64>> {
     let ca = s.f64().map_err(|_| dtype_error(s, name, "Float64"))?;
     let mut out: Vec<f64> = Vec::with_capacity(ca.len());
     for v in ca.iter() {
-        out.push(v.ok_or_else(|| {
-            polars_err!(ComputeError: "column `{name}` must not contain nulls")
-        })?);
+        out.push(
+            v.ok_or_else(|| polars_err!(ComputeError: "column `{name}` must not contain nulls"))?,
+        );
     }
     Ok(out)
 }
 
-/// Extract a `Boolean` column as `Vec<bool>`; nulls are an error.
-pub fn as_bool(s: &Series, name: &str) -> PolarsResult<Vec<bool>> {
-    let ca = s.bool().map_err(|_| dtype_error(s, name, "Boolean"))?;
-    ca.iter()
-        .map(|v| {
-            v.ok_or_else(|| {
-                polars_err!(ComputeError: "column `{name}` contains nulls, but the censorship \
-                 indicator must not be null")
-            })
-        })
-        .collect()
-}
-
-/// Like [`as_bool`], but nulls count as `false` (a missing qualifier means
-/// "not censored", which is the sensible default for environmental data).
+/// Extract a `Boolean` column as `Vec<bool>`; nulls count as `false` (a missing
+/// qualifier means "not censored", which is the sensible default for
+/// environmental data).
 pub fn as_bool_lenient(s: &Series, name: &str) -> PolarsResult<Vec<bool>> {
     let ca = s.bool().map_err(|_| dtype_error(s, name, "Boolean"))?;
     Ok(ca.iter().map(|v| v.unwrap_or(false)).collect())
@@ -50,9 +38,7 @@ pub fn as_bool_lenient(s: &Series, name: &str) -> PolarsResult<Vec<bool>> {
 /// cast would silently turn a negative `i32`/`i64` into an enormous index.
 pub fn as_usize(s: &Series, name: &str) -> PolarsResult<Vec<usize>> {
     let null = || polars_err!(ComputeError: "column `{name}` must not contain nulls");
-    let negative = || {
-        polars_err!(ComputeError: "column `{name}` must not contain negative values")
-    };
+    let negative = || polars_err!(ComputeError: "column `{name}` must not contain negative values");
 
     let mut out: Vec<usize> = Vec::with_capacity(s.len());
     match s.dtype() {
@@ -60,12 +46,12 @@ pub fn as_usize(s: &Series, name: &str) -> PolarsResult<Vec<usize>> {
             for v in s.u32()?.iter() {
                 out.push(v.ok_or_else(null)? as usize);
             }
-        },
+        }
         DataType::UInt64 => {
             for v in s.u64()?.iter() {
                 out.push(v.ok_or_else(null)? as usize);
             }
-        },
+        }
         DataType::Int32 => {
             for v in s.i32()?.iter() {
                 let v = v.ok_or_else(null)?;
@@ -74,7 +60,7 @@ pub fn as_usize(s: &Series, name: &str) -> PolarsResult<Vec<usize>> {
                 }
                 out.push(v as usize);
             }
-        },
+        }
         DataType::Int64 => {
             for v in s.i64()?.iter() {
                 let v = v.ok_or_else(null)?;
@@ -83,11 +69,11 @@ pub fn as_usize(s: &Series, name: &str) -> PolarsResult<Vec<usize>> {
                 }
                 out.push(v as usize);
             }
-        },
+        }
         dtype => {
             return Err(polars_err!(SchemaMismatch:
                 "expected `{name}` to be an integer dtype, got {dtype}"));
-        },
+        }
     }
     Ok(out)
 }

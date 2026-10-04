@@ -44,7 +44,7 @@ would have fallen.
 | Function | Returns |
 | --- | --- |
 | `plr.ros.cohn_numbers(result, censorship)` | struct of Cohn numbers, one row per detection limit |
-| `plr.ros.detection_limit_index(result, cohn)` | `UInt32` detection-limit index per row |
+| `plr.ros.detection_limit_index(result, cohn)` | `UInt32` detection-limit index per row; see below |
 | `plr.ros.group_rank(det_limit_index, censorship)` | `UInt32` rank within each detection-limit group |
 | `plr.ros.plotting_positions(result, censorship, cohn=None)` | `Float64` plotting positions |
 | `plr.ros.zprelim(plotting_positions)` | `Float64` normal deviates |
@@ -53,6 +53,25 @@ would have fallen.
 | `plr.ros.impute(result, censorship, ...)` | `Float64`, the whole pipeline |
 | `plr.ros.substitute(result, censorship, ...)` | `Float64`, substitution only |
 | `plr.ros.impute_details(result, censorship, ...)` | struct of every intermediate step |
+
+`cohn_numbers` returns one row per *distinct* detection limit, which is usually
+fewer than the number of censored observations. `detection_limit_index` maps a
+full-length `result` onto that shorter struct, so nest the two calls rather than
+materialising `cohn` as a column:
+
+```python
+df.select(
+    plr.ros.detection_limit_index(
+        "result", plr.ros.cohn_numbers("result", "censored")
+    ).alias("dl_idx")
+)
+```
+
+The index follows `wqio.ros._detection_limit_index` exactly, which applies *no*
+censoring mask: it is the 0-based position of the last Cohn row whose `lower_dl`
+is at or below the value, or `0` for a value below every detection limit. Censored
+observations therefore get a 1-based index, but so does any uncensored value that
+happens to sit at or above the lowest `lower_dl`.
 
 `impute` is the one you usually want:
 
@@ -129,14 +148,30 @@ python -m venv .venv
 .venv/Scripts/python -m pytest               # run the tests
 ```
 
+Point `maturin` at your virtualenv explicitly. If `VIRTUAL_ENV` is unset it will
+happily install into whatever Python is first on `PATH`, and a stray `CONDA_PREFIX`
+can send it to the wrong environment entirely:
+
+```bash
+export VIRTUAL_ENV="$PWD/.venv"
+unset CONDA_PREFIX
+```
+
 The Rust side targets Polars 0.55, which is what Python polars 1.44 links
 against. The `polars_expr` macro checks the FFI version at load time, so the
 Rust `polars` crate must match the installed Python polars.
 
+`sysinfo 0.39.6` requires **rustc 1.95 or newer**. If your default toolchain is
+older, pin a newer one with a `rust-toolchain.toml` rather than downgrading the
+dependency — `Cargo.lock` is committed deliberately, since this crate builds a
+native extension and reproducible builds depend on it.
+
 On this machine `.cargo/config.toml` points at the VS2017-era linker and
 Windows SDK 8.1 libraries that ship with Visual Studio 2022 Community, because
 no "Desktop development with C++" workload is installed. Delete that file on a
-machine with a normal C++ toolchain.
+machine with a normal C++ toolchain. `tools/msvc-env.ps1` wraps that setup
+along with the toolchain pin; it is machine-specific and is the only file here
+you will likely need to rewrite.
 
 ## Layout
 
