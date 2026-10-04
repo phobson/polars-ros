@@ -12,7 +12,13 @@ requires-python = ">=3.9"
 dependencies = ["polars>=1.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+# The scientific stack is needed only by tools/check_against_wqio.py, which
+# imports the vendored wqio source to cross-validate this port against it.
+# The regular test suite deliberately does not import wqio, so it stays
+# installable without them.
+#   numpy/pandas/scipy  wqio.ros and the fixtures
+#   probscale          wqio.bootstrap
+dev = ["pytest>=7", "numpy", "pandas", "scipy", "probscale"]
 
 [tool.maturin]
 python-source = "python"
@@ -21,3 +27,6 @@ features = ["pyo3/extension-module"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "wqio: cross-validates against the vendored wqio source (needs the dev extra)",
+]
