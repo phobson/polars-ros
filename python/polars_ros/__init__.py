@@ -14,6 +14,8 @@ implemented in Rust; they are ordinary polars expressions, so they compose with
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+
 from . import bootstrap, ros
 from .bootstrap import ci, fit
 from .ros import (
@@ -29,7 +31,12 @@ from .ros import (
     zprelim,
 )
 
-__version__ = "0.1.0"
+try:
+    # Cargo.toml is the single source of truth; the build backend copies the
+    # version into the installed metadata.
+    __version__ = version("polars-ros")
+except PackageNotFoundError:  # pragma: no cover - only when run from a source tree
+    __version__ = "uninstalled"
 
 __all__ = [
     "bootstrap",

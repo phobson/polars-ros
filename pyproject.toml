@@ -4,12 +4,38 @@ build-backend = "maturin"
 
 [project]
 name = "polars-ros"
-version = "0.1.0"
+# Sourced from Cargo.toml; this project deliberately keeps one version literal.
+dynamic = ["version"]
 description = "Regression on Order Statistics and bootstrap confidence intervals for Polars"
 readme = "README.md"
-license = { text = "MIT" }
-requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
 dependencies = ["polars>=1.0"]
+authors = [{ name = "Paul Hobson" }]
+maintainers = [{ name = "Paul Hobson" }]
+keywords = ["polars", "ros", "censored-data", "bootstrap", "hydrology", "statistics"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/phobson/polars-ros"
+Repository = "https://github.com/phobson/polars-ros"
+Issues = "https://github.com/phobson/polars-ros/issues"
+Changelog = "https://github.com/phobson/polars-ros/blob/main/CHANGELOG.md"
+# The reference implementation this port is validated against.
+wqio = "https://github.com/International-BMP-Database/wqio"
 
 [project.optional-dependencies]
 # The scientific stack is needed only by the tools/ checkers, which cross-validate
