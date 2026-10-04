@@ -1,0 +1,27 @@
+[package]
+name = "polars_ros"
+version = "0.1.0"
+edition = "2021"
+description = "Regression on Order Statistics and bootstrap confidence intervals for Polars"
+license = "MIT"
+
+[lib]
+name = "polars_ros"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
+pyo3-polars = { version = "0.28", features = ["derive", "dtype-struct"] }
+serde = { version = "1", features = ["derive"] }
+polars = { version = "0.55.1", features = ["dtype-struct"], default-features = false }
+polars-arrow = { version = "0.55.1", default-features = false }
+polars-mem-engine = { version = "0.55.1", features = ["python"] }
+polars-core = { version = "0.55.1", default-features = false }
+rand = "0.9"
+rand_chacha = "0.9"
+libm = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1

@@ -1,0 +1,20 @@
+# Local linker configuration.
+#
+# This machine has no Visual Studio C++ build tools and no Windows 10/11 SDK,
+# but Visual Studio 2022 Community ships a VS2017-era toolset and the Windows
+# SDK 8.1 import libraries under `SDK\ScopeCppSDK\vc15`. Pointing rustc at
+# those is enough to link on Windows targets.
+#
+# On a machine with a normal "Desktop development with C++" install, delete
+# this file -- cargo will find `link.exe` and the SDK itself.
+#
+# Note that `link.exe` must win over any GNU coreutils `link` that happens to be
+# earlier on PATH (conda environments ship one), which is why the linker is
+# given as an absolute path rather than a bare name.
+
+[target.x86_64-pc-windows-msvc]
+linker = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\SDK\\ScopeCppSDK\\vc15\\VC\\bin\\link.exe"
+rustflags = [
+    "-C", "link-arg=/LIBPATH:C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\SDK\\ScopeCppSDK\\vc15\\SDK\\lib",
+    "-C", "link-arg=/LIBPATH:C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\SDK\\ScopeCppSDK\\vc15\\VC\\lib",
+]
