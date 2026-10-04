@@ -22,9 +22,15 @@ SOFTWARE.
 
 --
 
-This project is a Rust/PyO3 port of the ROS (Regression on Order Statistics)
-and bootstrap routines from wqio (https://github.com/jakevwout/wqio), which is
-also MIT licensed. The wqio sources vendored under `wqio/` are unmodified apart
-from the removal of modules this project does not use, and remain the copyright
-of their authors. See https://github.com/jakevwout/wqio/blob/master/LICENSE for
-the upstream license text.
+This project is an independent Rust/PyO3 port of the ROS (Regression on Order
+Statistics) and bootstrap routines from wqio
+(https://github.com/International-BMP-Database/wqio), by the same author.
+
+It contains no wqio source code. wqio is used only as a development dependency,
+to cross-check this port's numerical output against the reference implementation
+(see tools/check_against_wqio.py). At runtime polars-ros does not import wqio
+and depends only on polars.
+
+wqio is distributed separately under the BSD-3-Clause license, at
+https://github.com/International-BMP-Database/wqio/blob/main/LICENSE
+
