@@ -1,10 +1,13 @@
-"""Verify tests/conftest.py against wqio/tests/test_ros.py using only stdlib.
+"""Verify tests/conftest.py against the installed wqio's test_ros.py.
 
 Parses wqio's test file with `ast` so the transcribed fixtures can be diffed
 against the real source without needing pandas or numpy. Run it after editing
 `tests/conftest.py`::
 
     python tools/check_fixtures.py
+
+wqio is located on disk rather than imported (see `wqio_location`), so this
+stays stdlib-only and needs no scientific stack.
 """
 
 import ast
@@ -13,8 +16,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests"))
+sys.path.insert(0, str(ROOT / "tools"))
 
 import conftest  # noqa: E402
+from wqio_location import wqio_source  # noqa: E402
 
 TARGETS = {
     "HelselAppendixB": "helsel_appendix_b",
@@ -129,7 +134,7 @@ def check_list(name, want, got, tol=5e-6):
             return
 
 
-tree = ast.parse((ROOT / "wqio" / "tests" / "test_ros.py").read_text(encoding="utf-8"))
+tree = ast.parse(wqio_source("tests", "test_ros.py"))
 
 # Collect class attributes, then resolve inheritance.
 own = {}
@@ -258,7 +263,7 @@ else:
 
 # basic_data must be the original CSV order.
 csv_rows = None
-h = ast.parse((ROOT / "wqio" / "tests" / "helpers.py").read_text(encoding="utf-8"))
+h = ast.parse(wqio_source("tests", "helpers.py"))
 for n in ast.walk(h):
     if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value.startswith("res,qual"):
         csv_rows = [

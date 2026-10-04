@@ -1,4 +1,4 @@
-"""Cross-validate the Rust port against the vendored wqio source, at runtime.
+"""Cross-validate the Rust port against the installed wqio, at runtime.
 
 `check_fixtures.py` proves the test *inputs* are wqio's, and
 `check_expected_arrays.py` proves the expected *outputs* were transcribed from
@@ -7,11 +7,13 @@ on the same input and diffs the results, which is the only check that can catch
 behaviour wqio exercises but does not assert.
 
 Usage:
-    python tools/check_against_wqio.py [-v]
+    python tools/check_against_wqio.py [-v] [--require]
 
-Requires numpy/pandas/scipy/statsmodels/probscale (the `dev` extra). Exits 0 with
-a skip notice if they are absent, so it is safe to wire into a gate that runs
-without the scientific stack.
+Requires the `dev` extra (numpy/pandas/scipy/probscale/wqio). By default it
+exits 0 with a skip notice if those are absent, so it is safe to wire into a
+gate that runs without the scientific stack; pass --require (or set
+POLARS_ROS_REQUIRE_WQIO=1, which is what CI does) to make a missing wqio a
+hard failure instead of a silent no-op.
 """
 
 from __future__ import annotations
@@ -28,8 +30,11 @@ from typing import Any
 
 import numpy
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from wqio_location import WqioNotInstalled, wqio_path, wqio_root  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
-WQIO = ROOT / "wqio"
 
 # Compatibility shims applied to wqio at load time, reported by main().
 PATCHES: list[str] = []
@@ -51,13 +56,14 @@ class Skip(Exception):
 # ---------------------------------------------------------------------------
 # Loading wqio without running its package __init__
 # ---------------------------------------------------------------------------
-# `wqio/__init__.py` imports datacollections, datasets, features, hydro, samples
-# and tests. Only ros.py, bootstrap.py, utils and tests were vendored, and
-# `wqio.utils.numutils` reaches for an unvendored `validate`. Since ros.py and
-# bootstrap.py touch exactly one helper -- `utils.log_or_warn` -- we synthesise
-# a `wqio` package whose `utils` exposes that single function, lifted verbatim
-# from the vendored `utils/misc.py` by AST so it cannot drift. The vendored
-# sources are never modified.
+# A plain `import wqio` executes its __init__, which imports datacollections,
+# datasets, features, hydro, samples and tests -- pulling in matplotlib,
+# seaborn and statsmodels just to read two statistical functions. We also must
+# not let wqio's own `__init__` shadow the synthetic package below. Since
+# ros.py and bootstrap.py touch exactly one helper -- `utils.log_or_warn` -- we
+# synthesise a `wqio` package whose `utils` exposes that single function, lifted
+# verbatim from the *installed* wqio's `utils/misc.py` by AST so it cannot drift.
+# The installed wqio is never modified.
 
 
 def _load_function(path: Path, name: str) -> Callable[..., Any]:
@@ -66,7 +72,7 @@ def _load_function(path: Path, name: str) -> Callable[..., Any]:
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             ns: dict[str, Any] = {"warnings": warnings}
-            exec(  # noqa: S102 - executing one vetted function from vendored source
+            exec(  # noqa: S102 - executing one vetted function from wqio's source
                 compile(ast.Module(body=[node], type_ignores=[]), str(path), "exec"), ns
             )
             return ns[name]
@@ -103,12 +109,18 @@ def load_wqio() -> tuple[Any, Any]:
     except ImportError as exc:  # pragma: no cover - depends on environment
         raise Skip(f"missing dependency: {exc.name}") from exc
 
+    try:
+        root = wqio_root()
+        misc = wqio_path("utils", "misc.py")
+    except WqioNotInstalled as exc:
+        raise Skip(str(exc)) from exc
+
     pkg = types.ModuleType("wqio")
-    pkg.__path__ = [str(WQIO)]  # type: ignore[attr-defined]
+    pkg.__path__ = [str(root)]  # type: ignore[attr-defined]
     sys.modules.setdefault("wqio", pkg)
 
     utils = types.ModuleType("wqio.utils")
-    utils.log_or_warn = _load_function(WQIO / "utils" / "misc.py", "log_or_warn")  # type: ignore[attr-defined]
+    utils.log_or_warn = _load_function(misc, "log_or_warn")  # type: ignore[attr-defined]
     sys.modules["wqio.utils"] = utils
     pkg.utils = utils  # type: ignore[attr-defined]
 
@@ -116,7 +128,7 @@ def load_wqio() -> tuple[Any, Any]:
 
     modules = {}
     for name in ("ros", "bootstrap"):
-        spec = importlib.util.spec_from_file_location(f"wqio.{name}", WQIO / f"{name}.py")
+        spec = importlib.util.spec_from_file_location(f"wqio.{name}", root / f"{name}.py")
         if spec is None or spec.loader is None:
             raise Skip(f"cannot load wqio/{name}.py")
         mod = importlib.util.module_from_spec(spec)

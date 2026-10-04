@@ -4,6 +4,9 @@ Parses wqio's tests with `ast` (stdlib only) and diffs against the literals in
 our own test modules. Run it after editing any expected value in `tests/`::
 
     python tools/check_expected_arrays.py
+
+wqio is located on disk rather than imported (see `wqio_location`), so this
+stays stdlib-only and needs no scientific stack.
 """
 
 import ast
@@ -11,6 +14,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+
+from wqio_location import wqio_source  # noqa: E402
+
 failures = []
 skipped = []
 
@@ -120,7 +127,7 @@ def dict_column(tree, func_name, column):
 
 
 # ---------------------------------------------------------------- test_ros.py
-wqio_ros = ast.parse((ROOT / "wqio" / "tests" / "test_ros.py").read_text(encoding="utf-8"))
+wqio_ros = ast.parse(wqio_source("tests", "test_ros.py"))
 ours_ros = ast.parse((ROOT / "tests" / "test_ros.py").read_text(encoding="utf-8"))
 
 
@@ -194,7 +201,7 @@ else:
         compare(f"expected_cohn.{col}", vals, ours_col, tol=5e-5)
 
 # ----------------------------------------------------------- test_bootstrap.py
-wqio_bs = ast.parse((ROOT / "wqio" / "tests" / "test_bootstrap.py").read_text(encoding="utf-8"))
+wqio_bs = ast.parse(wqio_source("tests", "test_bootstrap.py"))
 ours_bs = ast.parse((ROOT / "tests" / "test_bootstrap.py").read_text(encoding="utf-8"))
 
 
