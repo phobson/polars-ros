@@ -18,6 +18,7 @@ Run it standalone for the full report:
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -29,11 +30,30 @@ TOOL = ROOT / "tools" / "check_against_wqio.py"
 pytestmark = pytest.mark.wqio
 
 
+def _required() -> bool:
+    """CI sets POLARS_ROS_REQUIRE_WQIO=1 so a missing wqio fails the job.
+
+    Without it this test would skip, letting a green CI run prove nothing.
+    """
+    return os.environ.get("POLARS_ROS_REQUIRE_WQIO", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _skip_or_fail(reason: str) -> None:
+    if _required():
+        pytest.fail(f"{reason} (POLARS_ROS_REQUIRE_WQIO is set)")
+    pytest.skip(reason)
+
+
 def _missing_dependency() -> str | None:
     """Return the name of the first missing dev dependency, if any."""
     import importlib.util
 
-    for name in ("numpy", "pandas", "scipy", "probscale"):
+    for name in ("numpy", "pandas", "scipy", "probscale", "wqio"):
         if importlib.util.find_spec(name) is None:
             return name
     return None
@@ -44,9 +64,7 @@ def checker():
     """Import tools/check_against_wqio.py, skipping if the extra is absent."""
     missing = _missing_dependency()
     if missing is not None:
-        pytest.skip(f"{missing} not installed; run: pip install -e '.[dev]'")
-    if not (ROOT / "wqio" / "ros.py").exists():
-        pytest.skip("vendored wqio source is not present")
+        _skip_or_fail(f"{missing} not installed; run: pip install -e '.[dev]'")
 
     sys.path.insert(0, str(ROOT / "tools"))
     try:

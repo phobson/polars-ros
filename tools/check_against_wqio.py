@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import ast
 import inspect
+import os
 import sys
 import types
 import warnings
@@ -583,9 +584,27 @@ def cases() -> list[tuple[str, list[float], list[bool]]]:
     ]
 
 
+def _require_from_env() -> bool:
+    """CI sets POLARS_ROS_REQUIRE_WQIO=1 so a missing wqio fails the job."""
+    return os.environ.get("POLARS_ROS_REQUIRE_WQIO", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.parse_args()
+    # Without --require a missing wqio is a skip, which is right for a casual
+    # local run but wrong for a CI gate: it would pass while checking nothing.
+    ap.add_argument(
+        "--require",
+        action="store_true",
+        help="fail instead of skipping when wqio or its dependencies are missing",
+    )
+    args = ap.parse_args()
+    require = bool(args.require) or _require_from_env()
     sys.path.insert(0, str(ROOT))
     global CONFTEST  # noqa: PLW0603
     CONFTEST = load_conftest()
@@ -593,8 +612,11 @@ def main() -> int:
     try:
         ros, bootstrap = load_wqio()
     except Skip as exc:
-        print(f"SKIP: {exc}")
-        print("      install the extras with: pip install -e '.[dev]'")
+        message = f"{exc}; install the extras with: pip install -e '.[dev]'"
+        if require:
+            print(f"FAIL: {message}")
+            return 1
+        print(f"SKIP: {message}")
         return 0
 
     rep = Report()
