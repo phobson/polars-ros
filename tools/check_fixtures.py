@@ -1,15 +1,20 @@
 """Verify tests/conftest.py against the installed wqio's test_ros.py.
 
 Parses wqio's test file with `ast` so the transcribed fixtures can be diffed
-against the real source without needing pandas or numpy. Run it after editing
-`tests/conftest.py`::
+against the real source. Run it after editing `tests/conftest.py`::
 
-    python tools/check_fixtures.py
+    python tools/check_fixtures.py [--require]
 
-wqio is located on disk rather than imported (see `wqio_location`), so this
-stays stdlib-only and needs no scientific stack.
+Needs polars (to read tests/conftest.py) and the installed wqio, but not
+numpy/pandas/scipy/probscale -- wqio is located on disk and parsed as text, never
+imported (see `wqio_location`).
+
+With wqio unavailable this exits 0 with a skip notice so it can run in a bare
+environment. Pass --require (or set POLARS_ROS_REQUIRE_WQIO=1, which CI does) to
+make that a failure instead.
 """
 
+import argparse
 import ast
 import sys
 from pathlib import Path
@@ -18,8 +23,27 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
 
+from wqio_gate import add_require_flag, gate, required_from_env  # noqa: E402
+from wqio_location import WqioNotInstalled, wqio_source  # noqa: E402
+
+_ap = argparse.ArgumentParser(description=__doc__)
+add_require_flag(_ap)
+_args = _ap.parse_args()
+
+# Checked before importing conftest, which needs polars: a bare environment
+# should skip cleanly rather than die with ImportError.
+try:
+    _wqio_test_ros = wqio_source("tests", "test_ros.py")
+except WqioNotInstalled as exc:
+    raise SystemExit(
+        gate(
+            bool(_args.require) or required_from_env(),
+            str(exc),
+            "run: pip install -e '.[dev]'",
+        )
+    )
+
 import conftest  # noqa: E402
-from wqio_location import wqio_source  # noqa: E402
 
 TARGETS = {
     "HelselAppendixB": "helsel_appendix_b",
@@ -134,8 +158,7 @@ def check_list(name, want, got, tol=5e-6):
             return
 
 
-tree = ast.parse(wqio_source("tests", "test_ros.py"))
-
+tree = ast.parse(_wqio_test_ros)
 # Collect class attributes, then resolve inheritance.
 own = {}
 bases = {}

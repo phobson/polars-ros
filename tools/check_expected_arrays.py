@@ -1,14 +1,18 @@
 """Verify the hard-coded expected arrays in tests/*.py against wqio's test suite.
 
-Parses wqio's tests with `ast` (stdlib only) and diffs against the literals in
-our own test modules. Run it after editing any expected value in `tests/`::
+Parses wqio's tests with `ast` and diffs against the literals in our own test
+modules. Run it after editing any expected value in `tests/`::
 
-    python tools/check_expected_arrays.py
+    python tools/check_expected_arrays.py [--require]
 
-wqio is located on disk rather than imported (see `wqio_location`), so this
-stays stdlib-only and needs no scientific stack.
+Needs nothing but the standard library: both sides are read as text and never
+imported, so unlike `check_fixtures.py` this does not need polars either.
+
+With wqio unavailable this exits 0 with a skip notice. Pass --require (or set
+POLARS_ROS_REQUIRE_WQIO=1, which CI does) to make that a failure instead.
 """
 
+import argparse
 import ast
 import sys
 from pathlib import Path
@@ -16,7 +20,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
-from wqio_location import wqio_source  # noqa: E402
+from wqio_gate import add_require_flag, gate, required_from_env  # noqa: E402
+from wqio_location import WqioNotInstalled, wqio_source  # noqa: E402
+
+_ap = argparse.ArgumentParser(description=__doc__)
+add_require_flag(_ap)
+_args = _ap.parse_args()
+_require = bool(_args.require) or required_from_env()
+
+try:
+    _wqio_test_ros = wqio_source("tests", "test_ros.py")
+    _wqio_test_bootstrap = wqio_source("tests", "test_bootstrap.py")
+except WqioNotInstalled as exc:
+    raise SystemExit(gate(_require, str(exc), "run: pip install -e '.[dev]'"))
 
 failures = []
 skipped = []
@@ -127,7 +143,7 @@ def dict_column(tree, func_name, column):
 
 
 # ---------------------------------------------------------------- test_ros.py
-wqio_ros = ast.parse(wqio_source("tests", "test_ros.py"))
+wqio_ros = ast.parse(_wqio_test_ros)
 ours_ros = ast.parse((ROOT / "tests" / "test_ros.py").read_text(encoding="utf-8"))
 
 
@@ -201,7 +217,7 @@ else:
         compare(f"expected_cohn.{col}", vals, ours_col, tol=5e-5)
 
 # ----------------------------------------------------------- test_bootstrap.py
-wqio_bs = ast.parse(wqio_source("tests", "test_bootstrap.py"))
+wqio_bs = ast.parse(_wqio_test_bootstrap)
 ours_bs = ast.parse((ROOT / "tests" / "test_bootstrap.py").read_text(encoding="utf-8"))
 
 

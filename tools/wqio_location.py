@@ -32,9 +32,7 @@ def wqio_root() -> Path:
     except ValueError as exc:  # partially initialised, or broken install
         raise WqioNotInstalled(f"could not locate wqio: {exc}") from exc
     if spec is None or not spec.submodule_search_locations:
-        raise WqioNotInstalled(
-            "wqio is not installed; run: pip install -e '.[dev]'"
-        )
+        raise WqioNotInstalled("wqio is not installed")
     locations = list(spec.submodule_search_locations)
     if len(locations) != 1:
         raise WqioNotInstalled(f"wqio has multiple locations: {locations}")
