@@ -299,3 +299,33 @@ jobs:
 
       - name: Check the wheel and sdist metadata
         run: python -m twine check --strict dist/*
+
+  release-path:
+    name: release path (cibuildwheel)
+    runs-on: ubuntu-latest
+    # release.yml only runs when a tag is published, so nothing else in CI would
+    # notice if it broke. This exercises the same machinery on the one platform
+    # that needs no emulation: the aarch64, macOS and Windows cells stay
+    # untested until the first real release.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+
+      - uses: pypa/cibuildwheel@v4.3.0
+        env:
+          # Must match release.yml exactly, or this job stops testing what ships.
+          CIBW_BUILD: "cp311-*"
+          CIBW_ARCHS: "x86_64"
+          CIBW_TEST_REQUIRES: "pytest"
+
+      - name: Show what was built
+        run: ls -l wheelhouse
+
+      - name: Check the manylinux wheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install twine
+          python -m twine check --strict wheelhouse/*.whl
