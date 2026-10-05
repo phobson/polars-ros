@@ -51,11 +51,11 @@ jobs:
 
       - uses: pypa/cibuildwheel@v2.21.3
         env:
-          # pyo3 is built with abi3-py310, so a single wheel per platform serves
+          # pyo3 is built with abi3-py311, so a single wheel per platform serves
           # every supported interpreter. Without this cibuildwheel would rebuild
           # once per Python version and publish a wheel per version, which is
           # both slower and redundant.
-          CIBW_BUILD: "cp310-*"
+          CIBW_BUILD: "cp311-*"
           CIBW_ARCHS: ${{ matrix.cibw_archs }}
         with:
           output-dir: dist

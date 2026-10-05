@@ -19,8 +19,8 @@ First release.
   intervals, plus `ci` and `fit`.
 - Every function is a plain Polars `Expr`, so results compose with `select`,
   `with_columns`, `over`, and `group_by(...).agg(...)`.
-- A Rust/PyO3 extension module, distributed as an `abi3-py310` wheel for
-  CPython 3.10 and newer.
+- A Rust/PyO3 extension module, distributed as an `abi3-py311` wheel for
+    CPython 3.11 and newer.
 
 ### Notes
 
