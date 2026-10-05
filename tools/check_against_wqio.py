@@ -171,11 +171,12 @@ def close(a: float | None, b: float | None, tol: float = TOL) -> bool:
 
 
 class Report:
-    def __init__(self) -> None:
+    def __init__(self, verbose: bool = False) -> None:
         self.checks = 0
         self.failures: list[str] = []
         self.failure_count = 0
         self.skipped: list[str] = []
+        self.verbose = verbose
 
     def compare(
         self,
@@ -200,7 +201,7 @@ class Report:
                 self.fail(f"{label}[{i}]: ours={xf!r} wqio={yf!r}")
             elif xf is not None:
                 worst = max(worst, abs(xf - yf))
-        if worst > 0:
+        if worst > 0 or self.verbose:
             print(f"  {label:<34} {len(a):>4} rows, max |diff| = {worst:.3e}")
 
     def fail(self, message: str) -> None:
@@ -615,6 +616,12 @@ def main() -> int:
         action="store_true",
         help="fail instead of skipping when wqio or its dependencies are missing",
     )
+    ap.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="report every compared array, not just the ones that differ",
+    )
     args = ap.parse_args()
     require = bool(args.require) or _require_from_env()
     sys.path.insert(0, str(ROOT))
@@ -631,7 +638,7 @@ def main() -> int:
         print(f"SKIP: {message}")
         return 0
 
-    rep = Report()
+    rep = Report(verbose=args.verbose)
     check_ros(ros, rep)
     check_bootstrap(bootstrap, rep)
     code = rep.result()
