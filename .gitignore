@@ -11,6 +11,13 @@
 # extension, so it is effectively an application: pinning the lock file keeps
 # builds reproducible, and sysinfo 0.39.6 requires rustc >= 1.95.
 
+# Machine-local cargo configuration is ignored, not committed. The copy on this
+# machine points rustc at an absolute path to a VS2017-era toolset, which is
+# meaningless to anyone else and actively misleading inside a published sdist.
+# Contributors who need it create it locally; CI needs none of it.
+/.cargo/config.toml
+/.cargo/config
+
 # ---------------------------------------------------------------------------
 # Python
 # ---------------------------------------------------------------------------
