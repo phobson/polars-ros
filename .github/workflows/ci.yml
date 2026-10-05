@@ -53,21 +53,12 @@ jobs:
       # installing the artifact also exercises the same path users get from PyPI,
       # instead of compiling the extension twice via `pip install .[dev]`.
       - name: Build and install the extension
-        run: |
-          set -o pipefail
-          python -m pip install --upgrade pip
-          python -m pip install "maturin>=1.0,<2.0"
-          { python -m maturin build --release --out dist; } 2>&1 | tee /tmp/build.log
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            {
-              echo "### Build failed"
-              echo '```'
-              tail -n 80 /tmp/build.log
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit "$status"
+        # Builds a wheel and installs that, rather than using `maturin develop`.
+        # `develop` needs a virtualenv or conda env, and actions/setup-python
+        # provides neither, so it fails after doing all the work. Building once and
+        # installing the artifact also exercises the same path users get from PyPI,
+        # instead of compiling the extension twice via `pip install .[dev]`.
+        uses: ./.github/actions/build-wheel
 
       - name: Install the dev requirements
         # Bare requirements rather than `.[dev]`, which would also build and
@@ -126,24 +117,7 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Build a wheel
-        # Failures are echoed into the job summary as well as the log, because a
-        # silent `exit 1` from a toolchain or index hiccup is otherwise invisible
-        # from the run summary page.
-        run: |
-          set -o pipefail
-          python -m pip install --upgrade pip
-          python -m pip install "maturin>=1.0,<2.0"
-          { python -m maturin build --release --out dist; } 2>&1 | tee /tmp/build.log
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            {
-              echo "### Build failed"
-              echo '```'
-              tail -n 80 /tmp/build.log
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit "$status"
+        uses: ./.github/actions/build-wheel
 
       - name: Show what was built
         run: ls -l dist
@@ -301,10 +275,9 @@ jobs:
           python-version: "3.12"
 
       - name: Build a wheel
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install maturin twine
-          python -m maturin build --release --out dist
+        uses: ./.github/actions/build-wheel
+        with:
+          extra-requirements: twine
 
       - name: Check the wheel and sdist metadata
         run: python -m twine check --strict dist/*

@@ -1,0 +1,67 @@
+name: Build a wheel
+description: >-
+  Build the extension with maturin and report any failure usefully. Retries a
+  few times, because cargo fetches crates over the network and a failed fetch
+  aborts almost immediately, so a build that dies in seconds is far likelier to
+  be a blip than a broken commit.
+
+inputs:
+  out-dir:
+    description: Directory to write the wheel to.
+    default: dist
+  attempts:
+    description: How many times to attempt the build.
+    default: "3"
+  extra-requirements:
+    description: Additional pip requirements to install alongside maturin.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Build the wheel
+      shell: bash
+      env:
+        OUT_DIR: ${{ inputs.out-dir }}
+        ATTEMPTS: ${{ inputs.attempts }}
+        EXTRA_REQUIREMENTS: ${{ inputs.extra-requirements }}
+      run: |
+        set -uo pipefail
+        # Stream to the log and keep a copy, so a failure can be explained
+        # without anyone having to read the whole build.
+        exec > >(tee /tmp/build-step.log) 2>&1
+
+        # "Process completed with exit code 1" is the only thing a failed step
+        # says by default, which does not distinguish a broken commit from a
+        # dropped connection. Put the cause where it will actually be seen.
+        report_failure() {
+          {
+            echo "### Wheel build failed"
+            echo '```'
+            tail -n 120 /tmp/build-step.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=wheel build failed::$(tail -n 60 /tmp/build-step.log | tr '\n' ' ' | cut -c1-900)"
+        }
+
+        # `:-` matters: with `set -u` an unset variable is a fatal error that
+        # exits the shell outright, bypassing report_failure on its way out.
+        if ! python -m pip install --upgrade pip \
+           || ! python -m pip install "maturin>=1.0,<2.0" ${EXTRA_REQUIREMENTS:-}; then
+          report_failure
+          exit 1
+        fi
+
+        for attempt in $(seq 1 "$ATTEMPTS"); do
+          # Crates that already downloaded are cached in ~/.cargo, so a retry is
+          # much cheaper than the first attempt.
+          if python -m maturin build --release --out "$OUT_DIR"; then
+            exit 0
+          fi
+          if [ "$attempt" -lt "$ATTEMPTS" ]; then
+            echo "attempt $attempt of $ATTEMPTS failed; retrying"
+          fi
+        done
+
+        report_failure
+        exit 1
