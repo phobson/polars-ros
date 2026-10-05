@@ -47,14 +47,43 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      # maturin must be installed explicitly: it is a build backend, so pip only
-      # puts it in an isolated build environment, where `python -m maturin` cannot
-      # see it. The editable install makes the compiled extension importable.
-      - name: Build the extension
+      # Builds a wheel and installs that, rather than using `maturin develop`.
+      # `develop` needs a virtualenv or conda env, and actions/setup-python
+      # provides neither, so it fails after doing all the work. Building once and
+      # installing the artifact also exercises the same path users get from PyPI,
+      # instead of compiling the extension twice via `pip install .[dev]`.
+      - name: Build and install the extension
         run: |
+          set -o pipefail
           python -m pip install --upgrade pip
-          python -m pip install ".[dev]" "maturin>=1.0,<2.0"
-          python -m maturin develop --release
+          python -m pip install "maturin>=1.0,<2.0"
+          { python -m maturin build --release --out dist; } 2>&1 | tee /tmp/build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "### Build failed"
+              echo '```'
+              tail -n 80 /tmp/build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+
+      - name: Install the dev requirements
+        # Bare requirements rather than `.[dev]`, which would also build and
+        # install the source tree over the wheel this job is meant to test.
+        run: |
+          python -m pip install --force-reinstall dist/*.whl
+          python - <<'PY'
+          import re, subprocess, sys
+          from pathlib import Path
+
+          text = Path("pyproject.toml").read_text(encoding="utf-8")
+          body = re.search(r"^dev = \[(.*?)\]", text, re.S | re.M).group(1)
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", *re.findall(r'"([^"]+)"', body)]
+          )
+          PY
 
       - name: Run the test suite
         run: python -m pytest tests -v
@@ -97,10 +126,24 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Build a wheel
+        # Failures are echoed into the job summary as well as the log, because a
+        # silent `exit 1` from a toolchain or index hiccup is otherwise invisible
+        # from the run summary page.
         run: |
+          set -o pipefail
           python -m pip install --upgrade pip
           python -m pip install "maturin>=1.0,<2.0"
-          python -m maturin build --release --out dist
+          { python -m maturin build --release --out dist; } 2>&1 | tee /tmp/build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "### Build failed"
+              echo '```'
+              tail -n 80 /tmp/build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
 
       - name: Show what was built
         run: ls -l dist
