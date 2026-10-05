@@ -41,6 +41,10 @@ jobs:
           toolchain: 1.95.0
           components: clippy,rustfmt
 
+      # This job compiles polars once, but caching still keeps repeat runs to a
+      # couple of minutes instead of six.
+      - uses: Swatinem/rust-cache@v2
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -111,6 +115,23 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.95.0
+
+      # Six matrix cells each compile polars from scratch otherwise (~7 min apiece).
+      # Caching the registry and target directory keeps that to a few minutes after
+      # the first run, and cuts the crates.io traffic a cold matrix generates.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wheels-${{ matrix.os }}-${{ matrix.python }}
+
+      # Every cargo invocation re-reads rust-toolchain.toml and will try to sync
+      # the pinned toolchain, which needs network access. Doing that once here
+      # means a sync failure is attributed to its own step instead of surfacing
+      # as an unexplained "exit code 1" inside the wheel build.
+      - name: Make sure the pinned toolchain is usable
+        run: |
+          rustup show active-toolchain
+          cargo --version
+          rustc --version
 
       - uses: actions/setup-python@v5
         with:

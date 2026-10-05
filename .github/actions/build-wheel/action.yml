@@ -41,7 +41,10 @@ runs:
             tail -n 120 /tmp/build-step.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::error title=wheel build failed::$(tail -n 60 /tmp/build-step.log | tr '\n' ' ' | cut -c1-900)"
+          # The annotation is deliberately short. GitHub truncates it, and a longer
+          # tail gets cut off before the actual error, which is the whole point of
+          # emitting it.
+          echo "::error title=wheel build failed::$(tail -n 12 /tmp/build-step.log | tr '\n' ' ' | cut -c1-900)"
         }
 
         # `:-` matters: with `set -u` an unset variable is a fatal error that
