@@ -163,9 +163,10 @@ export VIRTUAL_ENV="$PWD/.venv"
 unset CONDA_PREFIX
 ```
 
-The Rust side targets Polars 0.55, which is what Python polars 1.44 links
-against. The `polars_expr` macro checks the FFI version at load time, so the
-Rust `polars` crate must match the installed Python polars.
+The Rust side targets the Polars 0.55 crates, which is the line Python polars 2.0
+links against. The `polars_expr` macro checks the FFI version at load time, so the
+Rust `polars` crate has to stay in the same line as the installed Python polars.
+A Python release that moves to a new Rust crate needs a rebuild of this one first.
 
 `sysinfo 0.39.6` requires **rustc 1.95 or newer**. If your default toolchain is
 older, pin a newer one with a `rust-toolchain.toml` rather than downgrading the
