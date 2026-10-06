@@ -46,6 +46,13 @@ wheels/
 .eggs/
 pip-wheel-metadata/
 
+# Written locally whenever a tool is invoked through `uv run`. This project
+# pins Rust dependencies via `Cargo.lock` but does not pin its Python ones, so
+# the lock file is never committed. It must also stay out of the sdist:
+# maturin ships any file that is not ignored here, and a 300 KB dev lockfile
+# has no business inside a package on PyPI.
+uv.lock
+
 # Native extension build artifacts.
 # `*.so`/`*.dll`/`*.dylib` are unscoped, as is conventional for compiled
 # extensions. `*.pyd` and `*.pdb` are scoped to the package directory
