@@ -1,0 +1,120 @@
+name: Polars rebuild trigger
+
+# Python polars and the Rust `polars` crate move independently, and the plugin
+# bridge between them is checked when the extension registers. When polars ships
+# a Python release built on a new Rust crate line, the wheel published from this
+# repository stops loading into it -- a failure that would otherwise surface for
+# the first time as an end-user import error, with no job here ever noticing.
+#
+# Runs on a schedule rather than on push, because nothing in the repository
+# changes when polars releases.
+
+on:
+  schedule:
+    # Mondays 06:17 UTC. Offset from the hour because GitHub delays runs that
+    # start on a round minute, sometimes by a long time.
+    - cron: "17 6 * * 1"
+  # Also runnable by hand, which is how the alerting path gets tested.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # The check opens an issue when a rebuild is needed and closes it again when
+  # the lines agree, so the signal is visible without watching the Actions tab.
+  issues: write
+
+concurrency:
+  group: rebuild-trigger
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: polars Rust crate line
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The script exits 1 for a mismatch and 2 when it could not find out,
+      # writing `status` either way. continue-on-error lets the steps below
+      # read that status and decide what to do; the explicit failure steps at
+      # the end keep a broken or mismatched check from passing silently even if
+      # the outputs never arrive.
+      - name: Compare our Rust polars line with the one Python polars links
+        id: check
+        continue-on-error: true
+        run: python tools/check_polars_rust_line.py
+
+      - name: Open or close the rebuild issue
+        if: steps.check.outputs.status == 'in-sync' || steps.check.outputs.status == 'rebuild-needed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ steps.check.outputs.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title='Polars moved its Rust crate line; polars-ros needs a rebuild'
+          existing=$(gh issue list --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number")
+
+          if [ "$STATUS" = "rebuild-needed" ]; then
+            if [ -n "$existing" ]; then
+              echo "issue #$existing is already open"
+            else
+              # Unquoted delimiter so $RUN_URL expands; the body contains no
+              # other shell metacharacters.
+              gh issue create --title "$title" --body "$(cat <<EOF
+          ## What happened
+
+          polars published a Python release built on a **different Rust crate line**
+          than this extension compiles against. The check and the exact versions
+          are in the [workflow run]($RUN_URL).
+
+          ## Why it matters
+
+          The \`polars_expr\` macro checks the plugin ABI when the extension
+          registers, so the published wheel will not load into that polars release.
+          Existing wheels keep working for every polars on the old line.
+
+          ## What to do
+
+          1. Bump \`polars\`, \`polars-core\`, \`polars-arrow\` and
+             \`polars-mem-engine\` in \`Cargo.toml\` to the new line, plus
+             \`pyo3-polars\` if it needs a matching bump.
+          2. \`cargo update\`, then run the full gate: \`cargo test\`,
+             \`cargo clippy --all-targets -- -D warnings\`,
+             \`cargo fmt --all --check\`.
+          3. Run \`python tools/check_polars_rust_line.py\` until it reports in sync.
+          4. Adjust the \`polars\` bound in \`pyproject.toml\` for the releases this
+             build supports, then tag a release.
+
+          This issue closes itself once the lines agree again.
+          EOF
+          )"
+            fi
+          else
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment \
+                "polars and polars-ros are on the same Rust crate line again; the rebuild this issue tracks is no longer needed."
+            else
+              echo "no rebuild issue open, nothing to do"
+            fi
+          fi
+
+      - name: Fail when a rebuild is needed
+        if: steps.check.outputs.status == 'rebuild-needed'
+        run: |
+          echo "::error title=polars moved Rust crate lines::${{ steps.check.outputs.detail }}"
+          echo "The published wheel will not load into the current polars. See the issue and job summary."
+          exit 1
+
+      # Covers both a failed lookup (status=error) and the case where the outputs
+      # never arrived at all. A silent green here would defeat the whole point.
+      - name: Fail when the check did not run
+        if: steps.check.outputs.status != 'in-sync' && steps.check.outputs.status != 'rebuild-needed'
+        run: |
+          echo "::error title=polars line check did not run::${{ steps.check.outputs.detail }}"
+          exit 1
