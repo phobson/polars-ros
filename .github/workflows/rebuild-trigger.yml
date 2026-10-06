@@ -106,8 +106,12 @@ jobs:
 
       - name: Fail when a rebuild is needed
         if: steps.check.outputs.status == 'rebuild-needed'
+        # Reaching the script through the environment rather than `${{ }}`
+        # keeps the interpolated text out of the shell parse tree.
+        env:
+          DETAIL: ${{ steps.check.outputs.detail }}
         run: |
-          echo "::error title=polars moved Rust crate lines::${{ steps.check.outputs.detail }}"
+          echo "::error title=polars moved Rust crate lines::$DETAIL"
           echo "The published wheel will not load into the current polars. See the issue and job summary."
           exit 1
 
@@ -115,6 +119,8 @@ jobs:
       # never arrived at all. A silent green here would defeat the whole point.
       - name: Fail when the check did not run
         if: steps.check.outputs.status != 'in-sync' && steps.check.outputs.status != 'rebuild-needed'
+        env:
+          DETAIL: ${{ steps.check.outputs.detail }}
         run: |
-          echo "::error title=polars line check did not run::${{ steps.check.outputs.detail }}"
+          echo "::error title=polars line check did not run::$DETAIL"
           exit 1
