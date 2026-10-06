@@ -145,7 +145,7 @@ with `numpy.random` to the last digit. Pass `seed` for reproducible runs.
 
 ## Building from source
 
-Needs Rust and Python 3.11+. `maturin` drives the build:
+Needs Rust and Python 3.12+. `maturin` drives the build:
 
 ```bash
 python -m venv .venv

@@ -51,15 +51,15 @@ jobs:
 
       # v4 rather than the v2 line: v4 defaults to manylinux_2_28 (AlmaLinux 8)
       # instead of manylinux2014 (CentOS 7), and runs abi3audit after repair, which
-      # checks the wheel really honours the abi3-py311 floor. It also retries
+      # checks the wheel really honours the abi3-py312 floor. It also retries
       # downloads with backoff.
       - uses: pypa/cibuildwheel@v4.3.0
         env:
-          # pyo3 is built with abi3-py311, so a single wheel per platform serves
+          # pyo3 is built with abi3-py312, so a single wheel per platform serves
           # every supported interpreter. Without this cibuildwheel would rebuild
           # once per Python version and publish a wheel per version, which is
           # both slower and redundant.
-          CIBW_BUILD: "cp311-*"
+          CIBW_BUILD: "cp312-*"
           CIBW_ARCHS: ${{ matrix.cibw_archs }}
           # The tests only need polars, which arrives with the wheel, so pytest is
           # the sole test requirement. Stated explicitly rather than relying on

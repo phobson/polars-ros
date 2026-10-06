@@ -19,8 +19,8 @@ First release.
   intervals, plus `ci` and `fit`.
 - Every function is a plain Polars `Expr`, so results compose with `select`,
   `with_columns`, `over`, and `group_by(...).agg(...)`.
-- A Rust/PyO3 extension module, distributed as an `abi3-py311` wheel for
-    CPython 3.11 and newer.
+- A Rust/PyO3 extension module, distributed as an `abi3-py312` wheel for
+    CPython 3.12 and newer.
 - Requires Polars 2.0 or newer, but not 3.0. The upper bound exists because the
     extension targets the 0.55 Rust crate line, which is what Python polars 2.0
     links against; a polars built on a different line will not load it. A
