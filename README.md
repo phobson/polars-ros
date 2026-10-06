@@ -168,6 +168,11 @@ links against. The `polars_expr` macro checks the FFI version at load time, so t
 Rust `polars` crate has to stay in the same line as the installed Python polars.
 A Python release that moves to a new Rust crate needs a rebuild of this one first.
 
+That constraint is why the runtime dependency is `polars>=2.0,<3`. The upper
+bound is deliberate: without it, pip could hand you a polars this wheel refuses
+to register against. A scheduled workflow compares the two lines and opens an
+issue when they diverge, so the rebuild is prompted rather than discovered.
+
 `sysinfo 0.39.6` requires **rustc 1.95 or newer**. If your default toolchain is
 older, pin a newer one with a `rust-toolchain.toml` rather than downgrading the
 dependency — `Cargo.lock` is committed deliberately, since this crate builds a
