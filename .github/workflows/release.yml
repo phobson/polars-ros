@@ -55,7 +55,7 @@ jobs:
       # instead of manylinux2014 (CentOS 7), and runs abi3audit after repair, which
       # checks the wheel really honours the abi3-py312 floor. It also retries
       # downloads with backoff.
-      - uses: pypa/cibuildwheel@v4.3.0
+      - uses: pypa/cibuildwheel@v4.3.1
         env:
           # rust-toolchain.toml lists clippy and rustfmt, so cargo tries to add them
           # to the preinstalled toolchain during the build. On the macOS arm64
