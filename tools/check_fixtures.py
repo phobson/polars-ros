@@ -83,7 +83,12 @@ def literal(node, scope=None):
     scope = scope if scope is not None else SCOPE
     if isinstance(node, ast.Constant):
         return node.value
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "numpy" and node.attr in {"inf", "nan"}:
+    if (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "numpy"
+        and node.attr in {"inf", "nan"}
+    ):
         return INF if node.attr == "inf" else NAN
     if isinstance(node, ast.Call):
         func = ast.unparse(node.func)
@@ -96,9 +101,17 @@ def literal(node, scope=None):
     if isinstance(node, ast.BinOp):
         left = literal(node.left, scope)
         right = literal(node.right, scope)
-        if isinstance(node.op, ast.Mult) and isinstance(right, int) and isinstance(left, list):
+        if (
+            isinstance(node.op, ast.Mult)
+            and isinstance(right, int)
+            and isinstance(left, list)
+        ):
             return left * right
-        if isinstance(node.op, ast.Add) and isinstance(left, list) and isinstance(right, list):
+        if (
+            isinstance(node.op, ast.Add)
+            and isinstance(left, list)
+            and isinstance(right, list)
+        ):
             return left + right
         return Unknown(ast.unparse(node)[:50])
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
@@ -109,7 +122,10 @@ def literal(node, scope=None):
     if isinstance(node, ast.List):
         return [literal(e, scope) for e in node.elts]
     if isinstance(node, ast.Dict):
-        return {literal(k, scope): literal(v, scope) for k, v in zip(node.keys, node.values, strict=False)}
+        return {
+            literal(k, scope): literal(v, scope)
+            for k, v in zip(node.keys, node.values, strict=False)
+        }
     if isinstance(node, ast.Name):
         if node.id in scope:
             return scope[node.id]
@@ -169,7 +185,9 @@ for node in tree.body:
 
         attrs = {}
         for stmt in node.body:
-            if not (isinstance(stmt, ast.Assign) and isinstance(stmt.targets[0], ast.Name)):
+            if not (
+                isinstance(stmt, ast.Assign) and isinstance(stmt.targets[0], ast.Name)
+            ):
                 continue
             name = stmt.targets[0].id
             if name not in {"res", "cen", "values", "decimal", "datastring", "cohn"}:
@@ -178,7 +196,10 @@ for node in tree.body:
                 attrs[name] = dedent_rows(stmt.value)
             elif name == "cohn":
                 d = stmt.value.args[0]  # ty: ignore[unresolved-attribute]
-                attrs[name] = {literal(k, scope): literal(v, scope) for k, v in zip(d.keys, d.values, strict=False)}
+                attrs[name] = {
+                    literal(k, scope): literal(v, scope)
+                    for k, v in zip(d.keys, d.values, strict=False)
+                }
             else:
                 attrs[name] = literal(stmt.value, scope)
         own[node.name] = attrs
@@ -254,26 +275,36 @@ for key, case in conftest.LITERATURE_CASES.items():
     if not uncensored:
         continue
     top = max(uncensored)
-    kept = sum(1 for v, c in zip(case.res, case.cen, strict=True) if (not c) or v <= top)
+    kept = sum(
+        1 for v, c in zip(case.res, case.cen, strict=True) if (not c) or v <= top
+    )
     if len(case.values) != kept:
-        failures.append(f"{key}: {kept} rows survive the drop rule, values has {len(case.values)}")
+        failures.append(
+            f"{key}: {kept} rows survive the drop rule, values has {len(case.values)}"
+        )
 
 # basic_data / ros_sorted_data must agree with wqio's expected_sorted fixture.
 sorted_src = None
 for node in ast.walk(tree):
     if isinstance(node, ast.FunctionDef) and node.name == "expected_sorted":
         for stmt in ast.walk(node):
-            if isinstance(stmt, ast.Call) and ast.unparse(stmt.func).endswith("DataFrame"):
+            if isinstance(stmt, ast.Call) and ast.unparse(stmt.func).endswith(
+                "DataFrame"
+            ):
                 rows = literal(stmt.args[0])
                 sorted_src = [(r["conc"], r["censored"]) for r in rows]
 if sorted_src is None:
     failures.append("could not parse wqio's expected_sorted fixture")
 else:
     base_pairs = list(zip(conftest.BASE_RESULTS, conftest.BASE_CENSORED, strict=True))
-    order = sorted(range(len(base_pairs)), key=lambda i: (not base_pairs[i][1], base_pairs[i][0]))
+    order = sorted(
+        range(len(base_pairs)), key=lambda i: (not base_pairs[i][1], base_pairs[i][0])
+    )
     mine = [base_pairs[i] for i in order]
     if mine != sorted_src:
-        failures.append("ros_sorted_data order/content does not match wqio's expected_sorted")
+        failures.append(
+            "ros_sorted_data order/content does not match wqio's expected_sorted"
+        )
     else:
         print(f"ros_sorted_data matches wqio's expected_sorted ({len(mine)} rows)")
 
@@ -281,9 +312,14 @@ else:
 csv_rows = None
 h = ast.parse(wqio_source("tests", "helpers.py"))
 for n in ast.walk(h):
-    if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value.startswith("res,qual"):
+    if (
+        isinstance(n, ast.Constant)
+        and isinstance(n.value, str)
+        and n.value.startswith("res,qual")
+    ):
         csv_rows = [
-            (float(a), b.strip() == "ND") for a, b in (line.split(",") for line in n.value.strip().splitlines()[1:])
+            (float(a), b.strip() == "ND")
+            for a, b in (line.split(",") for line in n.value.strip().splitlines()[1:])
         ]
 if csv_rows != base_pairs:
     failures.append("basic_data does not match getTestROSData's CSV order")

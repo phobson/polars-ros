@@ -73,9 +73,17 @@ def literal(node):
         return [literal(e) for e in node.elts]
     if isinstance(node, ast.BinOp):
         left, right = literal(node.left), literal(node.right)
-        if isinstance(node.op, ast.Mult) and isinstance(right, int) and isinstance(left, list):
+        if (
+            isinstance(node.op, ast.Mult)
+            and isinstance(right, int)
+            and isinstance(left, list)
+        ):
             return left * right
-        if isinstance(node.op, ast.Add) and isinstance(left, list) and isinstance(right, list):
+        if (
+            isinstance(node.op, ast.Add)
+            and isinstance(left, list)
+            and isinstance(right, list)
+        ):
             return left + right
     if isinstance(node, ast.Name):
         return Unknown(node.id)
@@ -129,9 +137,15 @@ def dict_column(tree, func_name, column):
         if not (isinstance(node, ast.FunctionDef) and node.name == func_name):
             continue
         for stmt in ast.walk(node):
-            if isinstance(stmt, ast.Call) and ast.unparse(stmt.func).endswith("DataFrame"):
+            if isinstance(stmt, ast.Call) and ast.unparse(stmt.func).endswith(
+                "DataFrame"
+            ):
                 rows = stmt.args[0]
-                if isinstance(rows, ast.List) and rows.elts and isinstance(rows.elts[0], ast.Dict):
+                if (
+                    isinstance(rows, ast.List)
+                    and rows.elts
+                    and isinstance(rows.elts[0], ast.Dict)
+                ):
                     vals = []
                     for r in rows.elts:
                         for k, v in zip(r.keys, r.values, strict=False):  # ty: ignore[unresolved-attribute]
@@ -176,7 +190,9 @@ compare(
 )
 z_want = dict_column(wqio_ros, "advanced_data", "Zprelim")
 z_got = ours_array("test_zprelim", "expected")
-print(f"zprelim: wqio[0]={z_want[0] if z_want else None} ours[0]={z_got[0] if z_got else None}")
+print(
+    f"zprelim: wqio[0]={z_want[0] if z_want else None} ours[0]={z_got[0] if z_got else None}"
+)
 compare("zprelim(advanced_data)", z_want, z_got)
 compare(
     "group_rank_expected",
@@ -192,18 +208,32 @@ if find_arrays(wqio_ros, "test__ros_group_rank").get("expected") is None:
 # basic cohn numbers: compare our expected dict against wqio's `expected_cohn`
 OUR_COHN = None
 for node in ast.walk(ours_ros):
-    if isinstance(node, ast.FunctionDef) and node.name == "test_cohn_numbers_matches_wqio":
+    if (
+        isinstance(node, ast.FunctionDef)
+        and node.name == "test_cohn_numbers_matches_wqio"
+    ):
         for stmt in ast.walk(node):
-            if isinstance(stmt, ast.Assign) and getattr(stmt.targets[0], "id", None) == "expected":
+            if (
+                isinstance(stmt, ast.Assign)
+                and getattr(stmt.targets[0], "id", None) == "expected"
+            ):
                 d = stmt.value
                 OUR_COHN = {
-                    literal(k): literal(v) for k, v in zip(d.keys, d.values, strict=False)  # ty: ignore[unresolved-attribute]
+                    literal(k): literal(v)
+                    for k, v in zip(d.keys, d.values, strict=False)  # ty: ignore[unresolved-attribute]
                 }
 
 if OUR_COHN is None:
     failures.append("could not parse our expected Cohn dict")
 else:
-    for col in ("lower_dl", "upper_dl", "nuncen_above", "nobs_below", "ncen_equal", "prob_exceedance"):
+    for col in (
+        "lower_dl",
+        "upper_dl",
+        "nuncen_above",
+        "nobs_below",
+        "ncen_equal",
+        "prob_exceedance",
+    ):
         vals = dict_column(wqio_ros, "expected_cohn", col)
         if vals is None:
             skipped.append(f"expected_cohn.{col}")
@@ -234,7 +264,10 @@ FIT_Y_WQIO = None
 for node in ast.walk(wqio_bs):
     if isinstance(node, ast.FunctionDef) and node.name == "test_fit":
         for stmt in ast.walk(node):
-            if isinstance(stmt, ast.Assign) and getattr(stmt.targets[0], "id", None) == "y":
+            if (
+                isinstance(stmt, ast.Assign)
+                and getattr(stmt.targets[0], "id", None) == "y"
+            ):
                 FIT_Y_WQIO = literal(stmt.value)
 compare("bootstrap.FIT_Y", FIT_Y_WQIO, ours_module_array(ours_bs, "FIT_Y"))
 
@@ -244,14 +277,20 @@ for i, want in enumerate([[8.686, 11.661], [8.670, 11.647]]):
     name = "KNOWN_BCA_CI" if i == 0 else "KNOWN_PERCENTILE_CI"
     vals = None
     for node in got.body:
-        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == name:
+        if (
+            isinstance(node, ast.Assign)
+            and getattr(node.targets[0], "id", None) == name
+        ):
             vals = literal(node.value)
     compare(f"bootstrap.{name}", want, vals)
 
 # known acceleration
 acc = None
 for node in ast.walk(wqio_bs):
-    if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == "known_acceleration":
+    if (
+        isinstance(node, ast.Assign)
+        and getattr(node.targets[0], "id", None) == "known_acceleration"
+    ):
         acc = literal(node.value)
 print(f"wqio known_acceleration = {acc!r}")
 
