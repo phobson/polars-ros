@@ -23,8 +23,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from wqio_gate import add_require_flag, gate, required_from_env  # noqa: E402
-from wqio_location import WqioNotInstalled, wqio_source  # noqa: E402
+from wqio_gate import add_require_flag, gate, required_from_env
+from wqio_location import WqioNotInstalled, wqio_source
 
 _ap = argparse.ArgumentParser(description=__doc__)
 add_require_flag(_ap)
@@ -43,7 +43,7 @@ except WqioNotInstalled as exc:
         )
     )
 
-import conftest  # noqa: E402
+import conftest  # ty: ignore[unresolved-import]
 
 TARGETS = {
     "HelselAppendixB": "helsel_appendix_b",
@@ -83,9 +83,8 @@ def literal(node, scope=None):
     scope = scope if scope is not None else SCOPE
     if isinstance(node, ast.Constant):
         return node.value
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-        if node.value.id == "numpy" and node.attr in {"inf", "nan"}:
-            return INF if node.attr == "inf" else NAN
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "numpy" and node.attr in {"inf", "nan"}:
+        return INF if node.attr == "inf" else NAN
     if isinstance(node, ast.Call):
         func = ast.unparse(node.func)
         if func in {"numpy.array", "numpy.asarray", "list"}:
@@ -93,16 +92,14 @@ def literal(node, scope=None):
         if func in {"StringIO", "io.StringIO", "dedent", "textwrap.dedent"}:
             return literal(node.args[0], scope)
         if func == "numpy.random.lognormal":
-            return Unknown(f"numpy.random.lognormal (needs numpy)")
+            return Unknown("numpy.random.lognormal (needs numpy)")
     if isinstance(node, ast.BinOp):
         left = literal(node.left, scope)
         right = literal(node.right, scope)
-        if isinstance(node.op, ast.Mult):
-            if isinstance(right, int) and isinstance(left, list):
-                return left * right
-        if isinstance(node.op, ast.Add):
-            if isinstance(left, list) and isinstance(right, list):
-                return left + right
+        if isinstance(node.op, ast.Mult) and isinstance(right, int) and isinstance(left, list):
+            return left * right
+        if isinstance(node.op, ast.Add) and isinstance(left, list) and isinstance(right, list):
+            return left + right
         return Unknown(ast.unparse(node)[:50])
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
         inner = literal(node.operand, scope)
@@ -136,9 +133,8 @@ def dedent_rows(node):
 
 
 def close(a, b, tol):
-    if isinstance(a, float) and isinstance(b, float):
-        if a != a and b != b:
-            return True
+    if isinstance(a, float) and isinstance(b, float) and a != a and b != b:  # noqa: PLR0124
+        return True
     return abs(a - b) <= tol
 
 
@@ -181,15 +177,12 @@ for node in tree.body:
             if name == "datastring":
                 attrs[name] = dedent_rows(stmt.value)
             elif name == "cohn":
-                d = stmt.value.args[0]
-                attrs[name] = {
-                    literal(k, scope): literal(v, scope)
-                    for k, v in zip(d.keys, d.values, strict=False)
-                }
+                d = stmt.value.args[0]  # ty: ignore[unresolved-attribute]
+                attrs[name] = {literal(k, scope): literal(v, scope) for k, v in zip(d.keys, d.values, strict=False)}
             else:
                 attrs[name] = literal(stmt.value, scope)
         own[node.name] = attrs
-        bases[node.name] = [b.id for b in node.bases]
+        bases[node.name] = [b.id for b in node.bases]  # ty: ignore[unresolved-attribute]
 
 
 def resolve(cls, attr, seen=None):
@@ -290,8 +283,7 @@ h = ast.parse(wqio_source("tests", "helpers.py"))
 for n in ast.walk(h):
     if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value.startswith("res,qual"):
         csv_rows = [
-            (float(a), b.strip() == "ND")
-            for a, b in (line.split(",") for line in n.value.strip().splitlines()[1:])
+            (float(a), b.strip() == "ND") for a, b in (line.split(",") for line in n.value.strip().splitlines()[1:])
         ]
 if csv_rows != base_pairs:
     failures.append("basic_data does not match getTestROSData's CSV order")

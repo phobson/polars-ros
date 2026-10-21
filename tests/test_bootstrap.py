@@ -10,10 +10,8 @@ agreement between repeated seeds.
 from __future__ import annotations
 
 import polars as pl
-import pytest
-
 import polars_ros as plr
-
+import pytest
 from conftest import BASE_RESULTS
 
 # wqio.tests.test_bootstrap

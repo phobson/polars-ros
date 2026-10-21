@@ -11,9 +11,8 @@ from __future__ import annotations
 import math
 
 import polars as pl
-import pytest
-
 import polars_ros as plr
+import pytest
 
 
 def test_cohn_numbers_matches_wqio(basic_data: pl.DataFrame) -> None:
@@ -300,7 +299,7 @@ def test_uncensored_nulls_propagate() -> None:
 
 def test_wrong_dtype_raises() -> None:
     df = pl.DataFrame({"res": [1.0, 2.0], "censored": [True, False]})
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         df.select(plr.ros.impute(pl.col("res").cast(pl.Int32), "censored"))
 
 

@@ -20,8 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
-from wqio_gate import add_require_flag, gate, required_from_env  # noqa: E402
-from wqio_location import WqioNotInstalled, wqio_source  # noqa: E402
+from wqio_gate import add_require_flag, gate, required_from_env
+from wqio_location import WqioNotInstalled, wqio_source
 
 _ap = argparse.ArgumentParser(description=__doc__)
 add_require_flag(_ap)
@@ -94,7 +94,7 @@ def compare(label, want, got, tol=1e-9):
         if isinstance(w, float) and isinstance(g, float):
             import math
 
-            if w != w and g != g:
+            if w != w and g != g:  # noqa: PLR0124
                 ok = True
             elif math.isinf(w) or math.isinf(g):
                 ok = w == g
@@ -134,7 +134,7 @@ def dict_column(tree, func_name, column):
                 if isinstance(rows, ast.List) and rows.elts and isinstance(rows.elts[0], ast.Dict):
                     vals = []
                     for r in rows.elts:
-                        for k, v in zip(r.keys, r.values, strict=False):
+                        for k, v in zip(r.keys, r.values, strict=False):  # ty: ignore[unresolved-attribute]
                             if getattr(k, "value", None) == column:
                                 vals.append(literal(v))
                     if len(vals) == len(rows.elts):
@@ -197,7 +197,7 @@ for node in ast.walk(ours_ros):
             if isinstance(stmt, ast.Assign) and getattr(stmt.targets[0], "id", None) == "expected":
                 d = stmt.value
                 OUR_COHN = {
-                    literal(k): literal(v) for k, v in zip(d.keys, d.values, strict=False)
+                    literal(k): literal(v) for k, v in zip(d.keys, d.values, strict=False)  # ty: ignore[unresolved-attribute]
                 }
 
 if OUR_COHN is None:
