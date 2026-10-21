@@ -156,7 +156,7 @@ def as_number(value: Any) -> float | None:
     if value is None:
         return None
     number = float(value)
-    return None if numpy.isnan(number) else number
+    return None if numpy.isnan(number) else number  # ty: ignore[unresolved-attribute]
 
 
 def close(a: float | None, b: float | None, tol: float = TOL) -> bool:
@@ -167,7 +167,7 @@ def close(a: float | None, b: float | None, tol: float = TOL) -> bool:
     # Identical infinities compare equal; abs(inf - inf) would be nan.
     if a == b:
         return True
-    if numpy.isinf(a) or numpy.isinf(b):
+    if numpy.isinf(a) or numpy.isinf(b):  # ty: ignore[unresolved-attribute]
         return False
     return abs(a - b) <= tol + tol * abs(b)
 

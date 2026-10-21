@@ -102,12 +102,12 @@ def test_max_statistic_ci_is_bounded_by_the_maximum() -> None:
 
 
 def test_unknown_statistic_raises() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         base_frame().select(plr.bootstrap.ci("res", statistic="mode", niter=10))
 
 
 def test_unknown_method_raises() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         base_frame().select(plr.bootstrap.ci("res", method="jackknife", niter=10))
 
 
@@ -215,7 +215,7 @@ def test_fit_in_log_space_fits_a_power_law() -> None:
 
 def test_fit_rejects_a_constant_predictor() -> None:
     df = pl.DataFrame({"x": [1.0] * 5, "y": [1.0, 2.0, 3.0, 4.0, 5.0]})
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         df.select(plr.bootstrap.fit("x", "y", niter=10))
 
 
