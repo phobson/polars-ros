@@ -82,6 +82,7 @@ nosetests.xml
 
 # Jupyter
 .ipynb_checkpoints/
+__marimo__
 
 # Environment variables and secrets. `.env.example` stays tracked.
 .env

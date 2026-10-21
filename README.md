@@ -117,10 +117,10 @@ function to reach for in that case.
 ## Bootstrap API
 
 ```python
-plr.bootstrap.ci(values, statistic="mean", niter=10_000, alpha=0.05,
-                 method="percentile", seed=None)
-plr.bootstrap.fit(x, y, niter=10_000, alpha=0.05, xlog=False, ylog=False,
-                  seed=None)
+plr.bootstrap.ci(
+    values, statistic="mean", niter=10_000, alpha=0.05, method="percentile", seed=None
+)
+plr.bootstrap.fit(x, y, niter=10_000, alpha=0.05, xlog=False, ylog=False, seed=None)
 ```
 
 `ci` returns a length-one struct with `lower` and `upper`. In a `select` or

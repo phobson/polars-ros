@@ -60,9 +60,9 @@ def rust_line(version: str) -> str:
 def line_from_cargo_lock(lock_text: str, crate: str = "polars") -> str:
     """The Rust line for `crate` as recorded in a Cargo.lock body."""
     for block in lock_text.split("[[package]]"):
-        if not re.search(rf'^name\s*=\s*"{re.escape(crate)}"\s*$', block, re.M):
+        if not re.search(rf'^name\s*=\s*"{re.escape(crate)}"\s*$', block, re.MULTILINE):
             continue
-        found = re.search(r'^version\s*=\s*"([^"]+)"', block, re.M)
+        found = re.search(r'^version\s*=\s*"([^"]+)"', block, re.MULTILINE)
         if found is None:
             raise LookupError(f"{crate} appears in the lockfile without a version")
         return rust_line(found.group(1))

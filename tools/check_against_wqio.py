@@ -25,6 +25,7 @@ import os
 import sys
 import types
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +33,7 @@ import numpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from wqio_location import WqioNotInstalled, wqio_path, wqio_root  # noqa: E402
+from wqio_location import WqioNotInstalled, wqio_path, wqio_root
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -88,13 +89,12 @@ def patch_for_pandas3(ros: Any) -> list[str]:
     body with the in-place sort swapped for an explicit one -- no algorithm
     change, only the sort's mechanics.
     """
-    import numpy
 
     def plotting_positions(df, censorship, cohn):
         plot_pos = df.apply(lambda r: ros._ros_plot_pos(r, censorship, cohn), axis=1)
         mask = df[censorship].to_numpy(dtype=bool)
         # pandas 3 gives a read-only view, so assign a sorted copy instead.
-        plot_pos.loc[mask] = numpy.sort(plot_pos[mask].to_numpy(dtype=float))
+        plot_pos.loc[mask] = plot_pos[mask].sort_values().to_numpy(dtype=float)
         return plot_pos
 
     ros.plotting_positions = plotting_positions
@@ -116,26 +116,28 @@ def load_wqio() -> tuple[Any, Any]:
         raise Skip(str(exc)) from exc
 
     pkg = types.ModuleType("wqio")
-    pkg.__path__ = [str(root)]  # type: ignore[attr-defined]
+    pkg.__path__ = [str(root)]
     sys.modules.setdefault("wqio", pkg)
 
     utils = types.ModuleType("wqio.utils")
-    utils.log_or_warn = _load_function(misc, "log_or_warn")  # type: ignore[attr-defined]
+    utils.log_or_warn = _load_function(misc, "log_or_warn")  # ty: ignore[unresolved-attribute]
     sys.modules["wqio.utils"] = utils
-    pkg.utils = utils  # type: ignore[attr-defined]
+    pkg.utils = utils  # ty: ignore[unresolved-attribute]
 
     import importlib.util
 
     modules = {}
     for name in ("ros", "bootstrap"):
-        spec = importlib.util.spec_from_file_location(f"wqio.{name}", root / f"{name}.py")
+        spec = importlib.util.spec_from_file_location(
+            f"wqio.{name}", root / f"{name}.py"
+        )
         if spec is None or spec.loader is None:
             raise Skip(f"cannot load wqio/{name}.py")
         mod = importlib.util.module_from_spec(spec)
         sys.modules[f"wqio.{name}"] = mod
         spec.loader.exec_module(mod)
         modules[name] = mod
-    PATCHES = patch_for_pandas3(modules["ros"])
+    patch_for_pandas3(modules["ros"])
     return modules["ros"], modules["bootstrap"]
 
 
@@ -199,7 +201,7 @@ class Report:
             if not close(xf, yf, tol):
                 worst = max(worst, abs((xf or 0.0) - (yf or 0.0)))
                 self.fail(f"{label}[{i}]: ours={xf!r} wqio={yf!r}")
-            elif xf is not None:
+            elif xf is not None and yf is not None:
                 worst = max(worst, abs(xf - yf))
         if worst > 0 or self.verbose:
             print(f"  {label:<34} {len(a):>4} rows, max |diff| = {worst:.3e}")
@@ -297,8 +299,6 @@ def _reason(exc: Exception) -> str:
 
 
 def check_ros(ros: Any, rep: Report) -> None:
-    import polars as pl
-
     import polars_ros as plr
 
     for label, res, cen in cases():
@@ -311,13 +311,18 @@ def check_ros(ros: Any, rep: Report) -> None:
             try:
                 want = bool(
                     ros.is_valid_to_ros(
-                        df, "censored", max_fraction_censored=max_frac, min_uncensored=min_unc
+                        df,
+                        "censored",
+                        max_fraction_censored=max_frac,
+                        min_uncensored=min_unc,
                     )
                 )
                 got = bool(
                     pdf.select(
                         plr.ros.is_valid(
-                            "censored", min_uncensored=min_unc, max_fraction_censored=max_frac
+                            "censored",
+                            min_uncensored=min_unc,
+                            max_fraction_censored=max_frac,
                         )
                     )["censored"][0]
                 )
@@ -327,19 +332,19 @@ def check_ros(ros: Any, rep: Report) -> None:
                         f"{tag} is_valid(min_uncensored={min_unc}, max_fraction_censored={max_frac}): "
                         f"ours={got} wqio={want}"
                     )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - any wqio failure is a skip, not a crash
                 rep.skip(f"{tag} is_valid({min_unc},{max_frac})", type(exc).__name__)
 
         # --- cohn_numbers -----------------------------------------------
         try:
             want_cohn = ros.cohn_numbers(df, "res", "censored")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - any wqio failure is a skip, not a crash
             rep.skip(f"{tag} cohn_numbers", type(exc).__name__)
             want_cohn = None
         if want_cohn is not None:
-            got_struct = (
-                pdf.select(plr.ros.cohn_numbers("res", "censored").alias("c")).to_series()
-            )
+            got_struct = pdf.select(
+                plr.ros.cohn_numbers("res", "censored").alias("c")
+            ).to_series()
             # wqio appends a trailing all-NaN sentinel row carrying
             # prob_exceedance == 0. It is an artifact of how it builds the
             # table: NaN lower_dl makes `lower_dl <= res` False everywhere, so
@@ -351,11 +356,18 @@ def check_ros(ros: Any, rep: Report) -> None:
             n_ours = len(got_struct)
             if n_theirs == n_ours + 1:
                 sentinel = {c: their_cols[c][-1] for c in their_cols}
-                is_sentinel = all(
-                    (v != v) for c, v in sentinel.items() if c != "prob_exceedance"
-                ) and sentinel.get("prob_exceedance") == 0.0
+                is_sentinel = (
+                    all(
+                        (v != v)  # noqa: PLR0124
+                        for c, v in sentinel.items()
+                        if c != "prob_exceedance"
+                    )
+                    and sentinel.get("prob_exceedance") == 0.0
+                )
                 if not is_sentinel:
-                    rep.fail(f"{tag} cohn: wqio extra row is not the NaN sentinel: {sentinel}")
+                    rep.fail(
+                        f"{tag} cohn: wqio extra row is not the NaN sentinel: {sentinel}"
+                    )
                 their_cols = {c: v[:-1] for c, v in their_cols.items()}
                 n_theirs -= 1
             if n_ours != n_theirs:
@@ -370,19 +382,18 @@ def check_ros(ros: Any, rep: Report) -> None:
 
         # --- substitute --------------------------------------------------
         for frac in (0.5, 1.0):
-            got = (
-                pdf.select(
-                    plr.ros.substitute("res", "censored", substitution_fraction=frac).alias("s")
-                )["s"]
-                .to_list()
-            )
+            got = pdf.select(
+                plr.ros.substitute("res", "censored", substitution_fraction=frac).alias(
+                    "s"
+                )
+            )["s"].to_list()
             rep.compare(
                 f"{tag} substitute({frac})",
                 got,
                 [frac * v if c else v for v, c in zip(res, cen, strict=True)],
             )
 
-# --- full ROS pipeline -------------------------------------------
+        # --- full ROS pipeline -------------------------------------------
         # wqio assembles det_limit_index -> rank -> plot_pos -> Zprelim ->
         # estimated -> final inside _do_ros, and returns ROS-ordered rows. Our
         # impute_details returns the same columns in the same order, so compare
@@ -404,7 +415,7 @@ def check_ros(ros: Any, rep: Report) -> None:
                         df.copy(), "res", "censored", fn_in, fn_out, log=False
                     )
                 wqio_error: Exception | None = None
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - any wqio failure is a skip, not a crash
                 modeled = None
                 wqio_error = exc
 
@@ -412,7 +423,10 @@ def check_ros(ros: Any, rep: Report) -> None:
                 det = (
                     pdf.select(
                         plr.ros.impute_details(
-                            "res", "censored", transform_in=name_in, transform_out=name_out
+                            "res",
+                            "censored",
+                            transform_in=name_in,
+                            transform_out=name_out,
                         ).alias("d")
                     )
                     .unnest("d")
@@ -420,7 +434,7 @@ def check_ros(ros: Any, rep: Report) -> None:
                 )
                 ours = {k: [row[k] for row in det] for k in det[0]} if det else {}
                 our_error: Exception | None = None
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - any wqio failure is a skip, not a crash
                 ours = {}
                 our_error = exc
 
@@ -487,7 +501,6 @@ def check_ros(ros: Any, rep: Report) -> None:
 def check_bootstrap(bootstrap: Any, rep: Report) -> None:
     import numpy
     import polars as pl
-
     import polars_ros as plr
 
     data = numpy.asarray(CONFTEST.BASE_RESULTS, dtype=float)
@@ -506,18 +519,15 @@ def check_bootstrap(bootstrap: Any, rep: Report) -> None:
                 kwargs["log"] = False
             try:
                 want = fn(data, stat, **kwargs)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 rep.skip(f"bootstrap {name}(alpha={alpha})", type(exc).__name__)
                 continue
             lo_w, hi_w = float(want[0]), float(want[1])
-            ours_ci = (
-                pdf.select(
-                    plr.bootstrap.ci(
-                        "res", statistic="mean", niter=NITER, alpha=alpha, seed=0
-                    )
+            ours_ci = pdf.select(
+                plr.bootstrap.ci(
+                    "res", statistic="mean", niter=NITER, alpha=alpha, seed=0
                 )
-                .to_series()
-            )
+            ).to_series()
             lo_o, hi_o = (
                 float(ours_ci.struct.field("lower")[0]),
                 float(ours_ci.struct.field("upper")[0]),
@@ -541,7 +551,10 @@ def check_bootstrap(bootstrap: Any, rep: Report) -> None:
     # upper). Only yhat is deterministic -- lower/upper are bootstrap
     # percentiles over an unseeded resample, so those get a width tolerance.
     fit_x, fit_y = load_fit_data()
-    fit_xa, fit_ya = numpy.asarray(fit_x, dtype=float), numpy.asarray(fit_y, dtype=float)
+    fit_xa, fit_ya = (
+        numpy.asarray(fit_x, dtype=float),
+        numpy.asarray(fit_y, dtype=float),
+    )
     want = bootstrap.fit(
         fit_xa,
         fit_ya,
@@ -592,8 +605,16 @@ def cases() -> list[tuple[str, list[float], list[bool]]]:
         ("no-censor", base, [False] * len(base)),
         ("all-censor", base, [True] * len(base)),
         ("few-uncensored", base[:4], cen[:4]),
-        ("ties", [1.0, 1.0, 2.0, 2.0, 2.0, 3.0], [True, True, True, False, False, False]),
-        ("two-level", [5.0, 9.5, 9.5, 11.0, 2.0, 3.0], [True, True, True, True, False, False]),
+        (
+            "ties",
+            [1.0, 1.0, 2.0, 2.0, 2.0, 3.0],
+            [True, True, True, False, False, False],
+        ),
+        (
+            "two-level",
+            [5.0, 9.5, 9.5, 11.0, 2.0, 3.0],
+            [True, True, True, True, False, False],
+        ),
     ]
 
 
@@ -625,7 +646,7 @@ def main() -> int:
     args = ap.parse_args()
     require = bool(args.require) or _require_from_env()
     sys.path.insert(0, str(ROOT))
-    global CONFTEST  # noqa: PLW0603
+    global CONFTEST
     CONFTEST = load_conftest()
     print("cross-validating the Rust port against live wqio")
     try:
@@ -649,4 +670,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

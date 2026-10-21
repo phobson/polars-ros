@@ -11,9 +11,8 @@ from __future__ import annotations
 import math
 
 import polars as pl
-import pytest
-
 import polars_ros as plr
+import pytest
 
 
 def test_cohn_numbers_matches_wqio(basic_data: pl.DataFrame) -> None:
@@ -35,10 +34,9 @@ def test_cohn_numbers_matches_wqio(basic_data: pl.DataFrame) -> None:
         ],
     }
 
-    result = (
-        basic_data.select(plr.ros.cohn_numbers("res", "censored").alias("cohn_numbers"))
-        .unnest("cohn_numbers")
-    )
+    result = basic_data.select(
+        plr.ros.cohn_numbers("res", "censored").alias("cohn_numbers")
+    ).unnest("cohn_numbers")
     assert result.height == len(expected["lower_dl"])
     for column, values in expected.items():
         got = result[column].to_list()
@@ -77,8 +75,18 @@ def test_group_rank() -> None:
         {
             "dl_idx": [1] * 12,
             "censored": [
-                False, False, True, False, False, False,
-                True, True, True, False, True, False,
+                False,
+                False,
+                True,
+                False,
+                False,
+                False,
+                True,
+                True,
+                True,
+                False,
+                True,
+                False,
             ],
         }
     )
@@ -101,12 +109,41 @@ def test_group_rank_is_per_detection_limit() -> None:
 
 def test_plotting_positions(ros_sorted_data: pl.DataFrame) -> None:
     expected = [
-        0.07414188, 0.11121281, 0.14828375, 0.14828375, 0.20869565, 0.34285714,
-        0.41739130, 0.05560641, 0.11121281, 0.16681922, 0.24713959, 0.27185355,
-        0.32652382, 0.35648013, 0.38643645, 0.41639276, 0.44634907, 0.47630539,
-        0.50626170, 0.53621802, 0.56617433, 0.59613064, 0.64596273, 0.66583851,
-        0.71190476, 0.73809524, 0.76428571, 0.79047619, 0.81666667, 0.84285714,
-        0.86904762, 0.89523810, 0.92142857, 0.94761905, 0.97380952,
+        0.07414188,
+        0.11121281,
+        0.14828375,
+        0.14828375,
+        0.20869565,
+        0.34285714,
+        0.41739130,
+        0.05560641,
+        0.11121281,
+        0.16681922,
+        0.24713959,
+        0.27185355,
+        0.32652382,
+        0.35648013,
+        0.38643645,
+        0.41639276,
+        0.44634907,
+        0.47630539,
+        0.50626170,
+        0.53621802,
+        0.56617433,
+        0.59613064,
+        0.64596273,
+        0.66583851,
+        0.71190476,
+        0.73809524,
+        0.76428571,
+        0.79047619,
+        0.81666667,
+        0.84285714,
+        0.86904762,
+        0.89523810,
+        0.92142857,
+        0.94761905,
+        0.97380952,
     ]
 
     result = ros_sorted_data.select(plr.ros.plotting_positions("res", "censored"))
@@ -119,13 +156,41 @@ def test_plotting_positions(ros_sorted_data: pl.DataFrame) -> None:
 def test_zprelim(ros_sorted_data: pl.DataFrame) -> None:
     # The `Zprelim` column of wqio's `advanced_data` fixture.
     expected = [
-        -1.44562021, -1.22010353, -1.04382253, -1.04382253, -0.81095536,
-        -0.40467790, -0.20857169, -1.59276546, -1.22010353, -0.96681116,
-        -0.68351863, -0.60721672, -0.44953240, -0.36788328, -0.28861907,
-        -0.21113039, -0.13489088, -0.05942854, 0.015696403, 0.090910169,
-        0.166642511, 0.243344267, 0.374443298, 0.428450751, 0.558957865,
-        0.637484160, 0.720156617, 0.808074633, 0.902734791, 1.006269985,
-        1.121900467, 1.254875912, 1.414746425, 1.622193585, 1.939989611,
+        -1.44562021,
+        -1.22010353,
+        -1.04382253,
+        -1.04382253,
+        -0.81095536,
+        -0.40467790,
+        -0.20857169,
+        -1.59276546,
+        -1.22010353,
+        -0.96681116,
+        -0.68351863,
+        -0.60721672,
+        -0.44953240,
+        -0.36788328,
+        -0.28861907,
+        -0.21113039,
+        -0.13489088,
+        -0.05942854,
+        0.015696403,
+        0.090910169,
+        0.166642511,
+        0.243344267,
+        0.374443298,
+        0.428450751,
+        0.558957865,
+        0.637484160,
+        0.720156617,
+        0.808074633,
+        0.902734791,
+        1.006269985,
+        1.121900467,
+        1.254875912,
+        1.414746425,
+        1.622193585,
+        1.939989611,
     ]
 
     result = ros_sorted_data.select(
@@ -139,12 +204,41 @@ def test_zprelim(ros_sorted_data: pl.DataFrame) -> None:
 def test_impute_matches_wqio(ros_sorted_data: pl.DataFrame) -> None:
     # wqio's `test__do_ros_basic` expected array, in ROS order.
     expected = [
-        3.11279729, 3.60634338, 4.04602788, 4.04602788, 4.71008116, 6.14010906,
-        6.97841457, 2.00000000, 4.20000000, 4.62000000, 5.57000000, 5.66000000,
-        5.86000000, 6.65000000, 6.78000000, 6.79000000, 7.50000000, 7.50000000,
-        7.50000000, 8.63000000, 8.71000000, 8.99000000, 9.85000000, 10.82000000,
-        11.25000000, 11.25000000, 12.20000000, 14.92000000, 16.77000000,
-        17.81000000, 19.16000000, 19.19000000, 19.64000000, 20.18000000, 22.97,
+        3.11279729,
+        3.60634338,
+        4.04602788,
+        4.04602788,
+        4.71008116,
+        6.14010906,
+        6.97841457,
+        2.00000000,
+        4.20000000,
+        4.62000000,
+        5.57000000,
+        5.66000000,
+        5.86000000,
+        6.65000000,
+        6.78000000,
+        6.79000000,
+        7.50000000,
+        7.50000000,
+        7.50000000,
+        8.63000000,
+        8.71000000,
+        8.99000000,
+        9.85000000,
+        10.82000000,
+        11.25000000,
+        11.25000000,
+        12.20000000,
+        14.92000000,
+        16.77000000,
+        17.81000000,
+        19.16000000,
+        19.19000000,
+        19.64000000,
+        20.18000000,
+        22.97,
     ]
 
     result = ros_sorted_data.select(plr.ros.impute("res", "censored").alias("ros"))
@@ -156,12 +250,46 @@ def test_impute_matches_wqio(ros_sorted_data: pl.DataFrame) -> None:
 def test_impute_floor_matches_wqio(ros_sorted_data: pl.DataFrame) -> None:
     # wqio's `test__do_ros_basic_with_floor`.
     expected = [
-        5.0, 5.0, 5.0, 5.0, 5.0, 6.14010906, 6.97841457, 5.0, 5.0, 5.0, 5.57, 5.66,
-        5.86, 6.65, 6.78, 6.79, 7.50, 7.50, 7.50, 8.63, 8.71, 8.99, 9.85, 10.82,
-        11.25, 11.25, 12.20, 14.92, 16.77, 17.81, 19.16, 19.19, 19.64, 20.18, 22.97,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        6.14010906,
+        6.97841457,
+        5.0,
+        5.0,
+        5.0,
+        5.57,
+        5.66,
+        5.86,
+        6.65,
+        6.78,
+        6.79,
+        7.50,
+        7.50,
+        7.50,
+        8.63,
+        8.71,
+        8.99,
+        9.85,
+        10.82,
+        11.25,
+        11.25,
+        12.20,
+        14.92,
+        16.77,
+        17.81,
+        19.16,
+        19.19,
+        19.64,
+        20.18,
+        22.97,
     ]
 
-    result = ros_sorted_data.select(plr.ros.impute("res", "censored", floor=5.0).alias("ros"))
+    result = ros_sorted_data.select(
+        plr.ros.impute("res", "censored", floor=5.0).alias("ros")
+    )
     got = result["ros"].to_list()
     for want, have in zip(expected, got, strict=True):
         assert have == pytest.approx(want, abs=1e-7)
@@ -198,7 +326,7 @@ def test_impute_from_literature(literature_case) -> None:
     expected = sorted(literature_case.values)
     assert len(got) == len(expected)
     for want, have in zip(expected, got, strict=True):
-        assert have == pytest.approx(want, abs=10 ** -literature_case.decimal)
+        assert have == pytest.approx(want, abs=10**-literature_case.decimal)
 
 
 def test_censored_above_max_uncensored_becomes_null(literature_case) -> None:
@@ -217,7 +345,9 @@ def max_cen_dropped_count(case) -> int:
     if not case.cen:
         return 0
     max_uncensored = max(v for v, c in zip(case.res, case.cen, strict=True) if not c)
-    return sum(1 for v, c in zip(case.res, case.cen, strict=True) if c and v > max_uncensored)
+    return sum(
+        1 for v, c in zip(case.res, case.cen, strict=True) if c and v > max_uncensored
+    )
 
 
 def test_cohn_from_literature(literature_case) -> None:
@@ -258,10 +388,9 @@ def test_substitute() -> None:
 
 
 def test_impute_details_exposes_every_step(ros_sorted_data: pl.DataFrame) -> None:
-    result = (
-        ros_sorted_data.select(plr.ros.impute_details("res", "censored").alias("detail"))
-        .unnest("detail")
-    )
+    result = ros_sorted_data.select(
+        plr.ros.impute_details("res", "censored").alias("detail")
+    ).unnest("detail")
     assert result.columns == [
         "result",
         "censored",
@@ -300,16 +429,24 @@ def test_uncensored_nulls_propagate() -> None:
 
 def test_wrong_dtype_raises() -> None:
     df = pl.DataFrame({"res": [1.0, 2.0], "censored": [True, False]})
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         df.select(plr.ros.impute(pl.col("res").cast(pl.Int32), "censored"))
 
 
 def test_group_by_keeps_groups_independent() -> None:
     a = pl.DataFrame(
-        {"site": ["a"] * 4, "res": [1.0, 2.0, 3.0, 4.0], "censored": [True, True, False, False]}
+        {
+            "site": ["a"] * 4,
+            "res": [1.0, 2.0, 3.0, 4.0],
+            "censored": [True, True, False, False],
+        }
     )
     b = pl.DataFrame(
-        {"site": ["b"] * 4, "res": [10.0, 20.0, 30.0, 40.0], "censored": [True, True, False, False]}
+        {
+            "site": ["b"] * 4,
+            "res": [10.0, 20.0, 30.0, 40.0],
+            "censored": [True, True, False, False],
+        }
     )
     df = pl.concat([a, b])
     result = (
