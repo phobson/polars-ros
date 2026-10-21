@@ -68,7 +68,7 @@ def checker():
 
     sys.path.insert(0, str(ROOT / "tools"))
     try:
-        import check_against_wqio
+        import check_against_wqio  # ty: ignore[unresolved-import]
     finally:
         sys.path.remove(str(ROOT / "tools"))
     return check_against_wqio
