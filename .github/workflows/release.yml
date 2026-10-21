@@ -25,7 +25,9 @@ jobs:
             os: ubuntu-latest
             cibw_archs: x86_64
           - name: linux aarch64
-            os: ubuntu-latest
+            # A native arm runner: ubuntu-latest has no QEMU registered, so the
+            # aarch64 manylinux container dies with "exec format error".
+            os: ubuntu-24.04-arm
             cibw_archs: aarch64
           - name: macOS x86_64
             # macos-13 was retired in December 2025; macos-15-intel is the
@@ -55,6 +57,13 @@ jobs:
       # downloads with backoff.
       - uses: pypa/cibuildwheel@v4.3.0
         env:
+          # rust-toolchain.toml lists clippy and rustfmt, so cargo tries to add them
+          # to the preinstalled toolchain during the build. On the macOS arm64
+          # runner that collides with an existing cargo-clippy and aborts. The
+          # env var overrides the file, so no component sync happens. It only
+          # affects macOS/Windows; Linux builds run in a container that does not
+          # inherit it.
+          RUSTUP_TOOLCHAIN: "1.95.0"
           # pyo3 is built with abi3-py312, so a single wheel per platform serves
           # every supported interpreter. Without this cibuildwheel would rebuild
           # once per Python version and publish a wheel per version, which is
