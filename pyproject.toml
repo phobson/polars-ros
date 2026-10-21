@@ -64,3 +64,7 @@ testpaths = ["tests"]
 markers = [
     "wqio: cross-validates against the installed wqio (needs the dev extra)",
 ]
+
+[dependency-groups]
+dev = []
+extra = []
