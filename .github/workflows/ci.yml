@@ -344,7 +344,7 @@ jobs:
         with:
           toolchain: 1.95.0
 
-      - uses: pypa/cibuildwheel@v4.3.1
+      - uses: pypa/cibuildwheel@v4.3.4
         env:
           # Must match release.yml exactly, or this job stops testing what ships.
           CIBW_BUILD: "cp312-*"
