@@ -27,23 +27,15 @@ jobs:
   # so it should not be buried inside a matrix cell.
   cross-validate:
     name: Cross-validate against wqio
+    needs: build-wheels
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install the build environment
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config
-
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v8
         with:
-          toolchain: 1.95.0
-          components: clippy,rustfmt
-
-      # This job compiles polars once, but caching still keeps repeat runs to a
-      # couple of minutes instead of six.
-      - uses: Swatinem/rust-cache@v2
+          name: ci-wheel-ubuntu-latest
+          path: dist
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -51,19 +43,11 @@ jobs:
           python-version: "3.12"
           cache-dependency-glob: pyproject.toml
 
-      # --seed gives the venv pip, which the shared build-wheel action calls.
-      # Exporting the venv puts it first on PATH for every later step.
       - name: Create the virtualenv
         run: |
-          uv venv --seed
+          uv venv
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-
-      # Builds a wheel and installs that, rather than using `maturin develop`,
-      # so the job exercises the same path users get from PyPI instead of
-      # compiling the extension twice via `pip install .[dev]`.
-      - name: Build and install the extension
-        uses: ./.github/actions/build-wheel
 
       - name: Install the dev requirements
         # Bare requirements rather than `.[dev]`, which would also build and
@@ -90,11 +74,10 @@ jobs:
       - name: Compare every output array against wqio
         run: python tools/check_against_wqio.py --require -v
 
-  # Run the suite against an actual built wheel on every supported platform.
-  # This is the only job that would notice a wheel that builds but does not
-  # import, or an abi3 tag that is wrong for one interpreter.
-  wheels:
-    name: wheel (${{ matrix.os }}, py${{ matrix.python }})
+  # abi3-py312 wheels work on both supported interpreter endpoints. Compile
+  # once per OS, then test that exact artifact on each Python version below.
+  build-wheels:
+    name: build wheel (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     # This matrix spans Windows, where the default shell is PowerShell. The steps
     # below use bash constructs (`python - <<'PY'`, `ls -l`, `dist/*.whl` globs),
@@ -107,9 +90,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        # The ends of the supported range: 3.12 is the floor from
-        # `requires-python`, 3.14 the newest we claim in the classifiers.
-        python: ["3.12", "3.14"]
     steps:
       - uses: actions/checkout@v7
 
@@ -117,12 +97,9 @@ jobs:
         with:
           toolchain: 1.95.0
 
-      # Six matrix cells each compile polars from scratch otherwise (~7 min apiece).
-      # Caching the registry and target directory keeps that to a few minutes after
-      # the first run, and cuts the crates.io traffic a cold matrix generates.
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: wheels-${{ matrix.os }}-${{ matrix.python }}
+          shared-key: wheels-${{ matrix.os }}-3.12
 
       # Every cargo invocation re-reads rust-toolchain.toml and will try to sync
       # the pinned toolchain, which needs network access. Doing that once here
@@ -137,7 +114,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          python-version: ${{ matrix.python }}
+          python-version: "3.12"
           cache-dependency-glob: pyproject.toml
 
       # --seed gives the venv pip, which the shared build-wheel action calls.
@@ -155,6 +132,46 @@ jobs:
 
       - name: Show what was built
         run: ls -l dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ci-wheel-${{ matrix.os }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  wheels:
+    name: wheel (${{ matrix.os }}, py${{ matrix.python }})
+    needs: build-wheels
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Test the same ABI3 wheel on the floor and newest supported Python.
+        python: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: ci-wheel-${{ matrix.os }}
+          path: dist
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+          cache-dependency-glob: pyproject.toml
+
+      - name: Create the virtualenv
+        run: |
+          uv venv
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/.venv/Scripts" >> "$GITHUB_PATH"
 
       # Install the artifact, not the source tree, so a packaging mistake cannot
       # be masked by an editable install. The dev extra is installed as bare
@@ -188,6 +205,42 @@ jobs:
 
       - name: Test the installed wheel
         run: python -m pytest tests -v
+
+  python-types:
+    name: ty check
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: ci-wheel-ubuntu-latest
+          path: dist
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+          cache-dependency-glob: pyproject.toml
+
+      # Install dependencies separately so the source tree cannot trigger
+      # another compilation or overwrite the wheel under test.
+      - name: Install the wheel and dev dependencies
+        run: |
+          uv venv
+          uv pip install dist/*.whl
+          .venv/bin/python - <<'PY'
+          import subprocess, tomllib
+          from pathlib import Path
+
+          with Path("pyproject.toml").open("rb") as fh:
+              extra = tomllib.load(fh)["project"]["optional-dependencies"]["dev"]
+          subprocess.check_call(["uv", "pip", "install", *extra])
+          PY
+
+      - name: ty check
+        run: uvx ty check --python .venv .
 
   # Lints and formatting for the Rust side.
   rust-lints:
@@ -243,6 +296,12 @@ jobs:
 
       - name: Build an sdist
         run: uv build --sdist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ci-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
 
       - name: Install the sdist into a clean environment
         run: |
@@ -304,31 +363,26 @@ jobs:
 
   twine-check:
     name: metadata renders on PyPI
+    needs: [build-wheels, packaging]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ci-wheel-ubuntu-latest
+          path: dist
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: ci-sdist
+          path: dist
 
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           python-version: "3.12"
-          cache-dependency-glob: pyproject.toml
-
-      # --seed gives the venv pip, which the shared build-wheel action calls.
-      # Exporting the venv puts it first on PATH for every later step.
-      - name: Create the virtualenv
-        run: |
-          uv venv --seed
-          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
-          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
-          
-      - name: Build a wheel
-        uses: ./.github/actions/build-wheel
-        with:
-          extra-requirements: twine
 
       - name: Check the wheel and sdist metadata
-        run: python -m twine check --strict dist/*
+        run: uvx twine check --strict dist/*
 
   release-path:
     name: release path (cibuildwheel)
