@@ -17,13 +17,6 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 from . import bootstrap, ros
-from .bootstrap import ci, fit
-from .ros import (
-    estimate,
-    impute,
-    impute_details,
-    substitute,
-)
 
 try:
     # Cargo.toml is the single source of truth; the build backend copies the
@@ -34,10 +27,5 @@ except PackageNotFoundError:  # pragma: no cover - only when run from a source t
 
 __all__ = [
     "bootstrap",
-    "ci",
-    "estimate",
-    "impute",
-    "impute_details",
     "ros",
-    "substitute",
 ]

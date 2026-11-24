@@ -464,7 +464,7 @@ def impute_dataframe(
     df: DataFrame,
     result: Expr | str,
     censorship: Expr | str,
-    over_columns: Expr | list[Expr | str] | None = None,
+    over_columns: Expr | str | list[Expr | str] | None = None,
     min_uncensored: int = 2,
     max_fraction_censored: float = 0.8,
     substitution_fraction: float = 0.5,

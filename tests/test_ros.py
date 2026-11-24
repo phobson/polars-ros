@@ -433,26 +433,81 @@ def test_wrong_dtype_raises() -> None:
         df.select(plr.ros.impute(pl.col("res").cast(pl.Int32), "censored"))
 
 
-def test_group_by_keeps_groups_independent() -> None:
+@pytest.fixture
+def basic_dataframe() -> pl.DataFrame:
     a = pl.DataFrame(
         {
-            "site": ["a"] * 4,
-            "res": [1.0, 2.0, 3.0, 4.0],
-            "censored": [True, True, False, False],
+            "site": ["a"] * 8,
+            "day": [1, 2, 3, 4, 5, 6, 7, 8],
+            "res": [1.0, 3.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            "censored": [True, True, True, False, False, False, False, False],
         }
     )
     b = pl.DataFrame(
         {
-            "site": ["b"] * 4,
-            "res": [10.0, 20.0, 30.0, 40.0],
-            "censored": [True, True, False, False],
+            "site": ["b"] * 8,
+            "day": [1, 2, 3, 4, 5, 6, 7, 8],
+            "res": [10.0, 30.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
+            "censored": [True, True, True, False, False, False, False, False],
         }
     )
-    df = pl.concat([a, b])
+    return pl.concat([a, b])
+
+
+def test_group_by_keeps_groups_independent(basic_dataframe) -> None:
+
     result = (
-        df.group_by("site", maintain_order=True)
+        basic_dataframe.group_by("site", maintain_order=True)
         .agg(plr.ros.impute("res", "censored").alias("ros"))
         .sort("site")
     )
-    assert result["ros"].to_list()[0][2:] == pytest.approx([3.0, 4.0])
-    assert result["ros"].to_list()[1][2:] == pytest.approx([30.0, 40.0])
+    assert result["ros"].to_list()[0] == pytest.approx(
+        [
+            2.406039400235288,
+            2.7605728630403847,
+            3.0848315859130166,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+        ]
+    )
+    assert result["ros"].to_list()[1] == pytest.approx(
+        [
+            24.060394002352865,
+            27.60572863040383,
+            30.84831585913014,
+            40.0,
+            50.0,
+            60.0,
+            70.0,
+            80.0,
+        ]
+    )
+
+
+def test_impute_dataframe(basic_dataframe) -> None:
+
+    result = plr.ros.impute_dataframe(basic_dataframe, "res", "censored", "site")
+
+    assert result["imputed"].to_list() == pytest.approx(
+        [
+            2.406039400235288,
+            2.7605728630403847,
+            3.0848315859130166,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+            24.060394002352865,
+            27.60572863040383,
+            30.84831585913014,
+            40.0,
+            50.0,
+            60.0,
+            70.0,
+            80.0,
+        ]
+    )
