@@ -519,7 +519,7 @@ def impute_dataframe(
         transform_out,
         floor,
     )
-    if over_columns:
+    if over_columns is not None:
         ros_expr = ros_expr.over(over_columns)
 
     return df.select(

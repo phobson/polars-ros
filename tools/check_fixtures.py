@@ -43,7 +43,7 @@ except WqioNotInstalled as exc:
         )
     )
 
-import conftest  # ty: ignore[unresolved-import]
+import conftest  # ty: ignore[import-not-found]
 
 TARGETS = {
     "HelselAppendixB": "helsel_appendix_b",
@@ -195,7 +195,7 @@ for node in tree.body:
             if name == "datastring":
                 attrs[name] = dedent_rows(stmt.value)
             elif name == "cohn":
-                d = stmt.value.args[0]  # ty: ignore[unresolved-attribute]
+                d = stmt.value.args[0]  # ty: ignore[missing-attribute]
                 attrs[name] = {
                     literal(k, scope): literal(v, scope)
                     for k, v in zip(d.keys, d.values, strict=False)
@@ -203,7 +203,7 @@ for node in tree.body:
             else:
                 attrs[name] = literal(stmt.value, scope)
         own[node.name] = attrs
-        bases[node.name] = [b.id for b in node.bases]  # ty: ignore[unresolved-attribute]
+        bases[node.name] = [b.id for b in node.bases]  # ty: ignore[missing-attribute]
 
 
 def resolve(cls, attr, seen=None):

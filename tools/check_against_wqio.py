@@ -120,9 +120,9 @@ def load_wqio() -> tuple[Any, Any]:
     sys.modules.setdefault("wqio", pkg)
 
     utils = types.ModuleType("wqio.utils")
-    utils.log_or_warn = _load_function(misc, "log_or_warn")  # ty: ignore[unresolved-attribute]
+    utils.log_or_warn = _load_function(misc, "log_or_warn")  # ty: ignore[missing-attribute]
     sys.modules["wqio.utils"] = utils
-    pkg.utils = utils  # ty: ignore[unresolved-attribute]
+    pkg.utils = utils  # ty: ignore[missing-attribute]
 
     import importlib.util
 

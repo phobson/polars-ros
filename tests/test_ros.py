@@ -487,10 +487,12 @@ def test_group_by_keeps_groups_independent(basic_dataframe) -> None:
     )
 
 
-def test_impute_dataframe(basic_dataframe) -> None:
-
-    result = plr.ros.impute_dataframe(basic_dataframe, "res", "censored", "site")
-
+@pytest.mark.parametrize("colfxn", [lambda c: c, pl.col], ids=["string", "colexpr"])
+@pytest.mark.parametrize("over", ["site", ["site"]], ids=["scalar", "list"])
+def test_impute_dataframe(basic_dataframe, colfxn, over) -> None:
+    result = plr.ros.impute_dataframe(
+        basic_dataframe, colfxn("res"), colfxn("censored"), colfxn(over)
+    )
     assert result["imputed"].to_list() == pytest.approx(
         [
             2.406039400235288,
