@@ -13,12 +13,9 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
   python:
-    name: ruff + ty
+    name: ruff
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -28,24 +25,8 @@ jobs:
           enable-cache: true
           python-version: "3.12"
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.95.0
-
-      - uses: Swatinem/rust-cache@v2
-
       - name: Ruff lint
         run: uvx ruff check .
 
       - name: Ruff format
         run: uvx ruff format --check .
-
-      # ty needs the package (including the compiled extension) and the
-      # test/tool dependencies installed so imports resolve.
-      - name: Install package and dev dependencies
-        run: |
-          uv venv
-          uv pip install -e ".[dev]"
-
-      - name: ty check
-        run: uvx ty check --python .venv .

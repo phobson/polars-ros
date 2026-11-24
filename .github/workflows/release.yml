@@ -77,6 +77,13 @@ jobs:
         with:
           output-dir: dist
 
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.cibw_archs }}
+          path: dist/*.whl
+          if-no-files-found: error
+
   build-sdist:
     name: sdist
     runs-on: ubuntu-latest
