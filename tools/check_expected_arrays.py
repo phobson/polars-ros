@@ -148,7 +148,7 @@ def dict_column(tree, func_name, column):
                 ):
                     vals = []
                     for r in rows.elts:
-                        for k, v in zip(r.keys, r.values, strict=False):  # ty: ignore[unresolved-attribute]
+                        for k, v in zip(r.keys, r.values, strict=False):  # ty: ignore[missing-attribute]
                             if getattr(k, "value", None) == column:
                                 vals.append(literal(v))
                     if len(vals) == len(rows.elts):
@@ -220,7 +220,7 @@ for node in ast.walk(ours_ros):
                 d = stmt.value
                 OUR_COHN = {
                     literal(k): literal(v)
-                    for k, v in zip(d.keys, d.values, strict=False)  # ty: ignore[unresolved-attribute]
+                    for k, v in zip(d.keys, d.values, strict=False)  # ty: ignore[missing-attribute]
                 }
 
 if OUR_COHN is None:

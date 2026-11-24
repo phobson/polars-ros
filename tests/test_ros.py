@@ -35,7 +35,7 @@ def test_cohn_numbers_matches_wqio(basic_data: pl.DataFrame) -> None:
     }
 
     result = basic_data.select(
-        plr.ros.cohn_numbers("res", "censored").alias("cohn_numbers")
+        plr.ros._cohn_numbers("res", "censored").alias("cohn_numbers")
     ).unnest("cohn_numbers")
     assert result.height == len(expected["lower_dl"])
     for column, values in expected.items():
@@ -46,7 +46,7 @@ def test_cohn_numbers_matches_wqio(basic_data: pl.DataFrame) -> None:
 
 def test_cohn_numbers_is_empty_without_censoring(basic_data: pl.DataFrame) -> None:
     df = basic_data.with_columns(pl.lit(False).alias("uncensored"))
-    result = df.select(plr.ros.cohn_numbers("res", "uncensored"))
+    result = df.select(plr.ros._cohn_numbers("res", "uncensored"))
     assert result.height == 0
 
 
@@ -57,8 +57,8 @@ def test_detection_limit_index(ros_sorted_data: pl.DataFrame) -> None:
     # `cohn_numbers` has one row per distinct detection limit, so it is nested
     # rather than materialised as a column.
     result = ros_sorted_data.select(
-        plr.ros.detection_limit_index(
-            "res", plr.ros.cohn_numbers("res", "censored")
+        plr.ros._detection_limit_index(
+            "res", plr.ros._cohn_numbers("res", "censored")
         ).alias("idx"),
     )
     got = result["idx"].to_list()
@@ -92,7 +92,7 @@ def test_group_rank() -> None:
     )
     expected = [1, 2, 1, 3, 4, 5, 2, 3, 4, 6, 5, 7]
 
-    result = df.select(plr.ros.group_rank("dl_idx", "censored").alias("rank"))
+    result = df.select(plr.ros._group_rank("dl_idx", "censored").alias("rank"))
     assert result["rank"].to_list() == expected
 
 
@@ -103,7 +103,7 @@ def test_group_rank_is_per_detection_limit() -> None:
             "censored": [False] * 6,
         }
     )
-    result = df.select(plr.ros.group_rank("dl_idx", "censored").alias("rank"))
+    result = df.select(plr.ros._group_rank("dl_idx", "censored").alias("rank"))
     assert result["rank"].to_list() == [1, 2, 3, 1, 2, 3]
 
 
@@ -146,7 +146,7 @@ def test_plotting_positions(ros_sorted_data: pl.DataFrame) -> None:
         0.97380952,
     ]
 
-    result = ros_sorted_data.select(plr.ros.plotting_positions("res", "censored"))
+    result = ros_sorted_data.select(plr.ros._plotting_positions("res", "censored"))
     got = result["res"].to_list()
     assert len(got) == len(expected)
     for want, have in zip(expected, got, strict=True):
@@ -194,7 +194,7 @@ def test_zprelim(ros_sorted_data: pl.DataFrame) -> None:
     ]
 
     result = ros_sorted_data.select(
-        plr.ros.zprelim(plr.ros.plotting_positions("res", "censored"))
+        plr.ros._zprelim(plr.ros._plotting_positions("res", "censored"))
     )
     got = result["res"].to_list()
     for want, have in zip(expected, got, strict=True):
@@ -356,7 +356,7 @@ def test_cohn_from_literature(literature_case) -> None:
 
     result = (
         literature_case.frame()
-        .select(plr.ros.cohn_numbers("res", "censored").alias("cohn"))
+        .select(plr.ros._cohn_numbers("res", "censored").alias("cohn"))
         .unnest("cohn")
     )
     for column, expected in literature_case.cohn.items():
@@ -367,16 +367,16 @@ def test_cohn_from_literature(literature_case) -> None:
 
 
 def test_is_valid(basic_data: pl.DataFrame) -> None:
-    assert basic_data.select(plr.ros.is_valid("censored"))["censored"].item() is True
+    assert basic_data.select(plr.ros._is_valid("censored"))["censored"].item() is True
 
 
 def test_is_valid_rejects_too_much_censoring(basic_data: pl.DataFrame) -> None:
-    got = basic_data.select(plr.ros.is_valid("censored", max_fraction_censored=0.05))
+    got = basic_data.select(plr.ros._is_valid("censored", max_fraction_censored=0.05))
     assert got["censored"].item() is False
 
 
 def test_is_valid_rejects_too_few_uncensored(basic_data: pl.DataFrame) -> None:
-    got = basic_data.select(plr.ros.is_valid("censored", min_uncensored=100))
+    got = basic_data.select(plr.ros._is_valid("censored", min_uncensored=100))
     assert got["censored"].item() is False
 
 
@@ -433,26 +433,83 @@ def test_wrong_dtype_raises() -> None:
         df.select(plr.ros.impute(pl.col("res").cast(pl.Int32), "censored"))
 
 
-def test_group_by_keeps_groups_independent() -> None:
+@pytest.fixture
+def basic_dataframe() -> pl.DataFrame:
     a = pl.DataFrame(
         {
-            "site": ["a"] * 4,
-            "res": [1.0, 2.0, 3.0, 4.0],
-            "censored": [True, True, False, False],
+            "site": ["a"] * 8,
+            "day": [1, 2, 3, 4, 5, 6, 7, 8],
+            "res": [1.0, 3.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            "censored": [True, True, True, False, False, False, False, False],
         }
     )
     b = pl.DataFrame(
         {
-            "site": ["b"] * 4,
-            "res": [10.0, 20.0, 30.0, 40.0],
-            "censored": [True, True, False, False],
+            "site": ["b"] * 8,
+            "day": [1, 2, 3, 4, 5, 6, 7, 8],
+            "res": [10.0, 30.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
+            "censored": [True, True, True, False, False, False, False, False],
         }
     )
-    df = pl.concat([a, b])
+    return pl.concat([a, b])
+
+
+def test_group_by_keeps_groups_independent(basic_dataframe) -> None:
+
     result = (
-        df.group_by("site", maintain_order=True)
+        basic_dataframe.group_by("site", maintain_order=True)
         .agg(plr.ros.impute("res", "censored").alias("ros"))
         .sort("site")
     )
-    assert result["ros"].to_list()[0][2:] == pytest.approx([3.0, 4.0])
-    assert result["ros"].to_list()[1][2:] == pytest.approx([30.0, 40.0])
+    assert result["ros"].to_list()[0] == pytest.approx(
+        [
+            2.406039400235288,
+            2.7605728630403847,
+            3.0848315859130166,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+        ]
+    )
+    assert result["ros"].to_list()[1] == pytest.approx(
+        [
+            24.060394002352865,
+            27.60572863040383,
+            30.84831585913014,
+            40.0,
+            50.0,
+            60.0,
+            70.0,
+            80.0,
+        ]
+    )
+
+
+@pytest.mark.parametrize("colfxn", [lambda c: c, pl.col], ids=["string", "colexpr"])
+@pytest.mark.parametrize("over", ["site", ["site"]], ids=["scalar", "list"])
+def test_impute_dataframe(basic_dataframe, colfxn, over) -> None:
+    result = plr.ros.impute_dataframe(
+        basic_dataframe, colfxn("res"), colfxn("censored"), colfxn(over)
+    )
+    assert result["imputed"].to_list() == pytest.approx(
+        [
+            2.406039400235288,
+            2.7605728630403847,
+            3.0848315859130166,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+            24.060394002352865,
+            27.60572863040383,
+            30.84831585913014,
+            40.0,
+            50.0,
+            60.0,
+            70.0,
+            80.0,
+        ]
+    )
