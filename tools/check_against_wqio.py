@@ -319,7 +319,7 @@ def check_ros(ros: Any, rep: Report) -> None:
                 )
                 got = bool(
                     pdf.select(
-                        plr.ros.is_valid(
+                        plr.ros._is_valid(
                             "censored",
                             min_uncensored=min_unc,
                             max_fraction_censored=max_frac,
@@ -343,7 +343,7 @@ def check_ros(ros: Any, rep: Report) -> None:
             want_cohn = None
         if want_cohn is not None:
             got_struct = pdf.select(
-                plr.ros.cohn_numbers("res", "censored").alias("c")
+                plr.ros._cohn_numbers("res", "censored").alias("c")
             ).to_series()
             # wqio appends a trailing all-NaN sentinel row carrying
             # prob_exceedance == 0. It is an artifact of how it builds the

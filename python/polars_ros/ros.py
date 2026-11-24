@@ -17,30 +17,40 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from polars import Expr
+from polars import DataFrame, Expr
 from polars.plugins import register_plugin_function
 
 LIB = Path(__file__).parent
 
 __all__ = [
-    "cohn_numbers",
-    "detection_limit_index",
     "estimate",
-    "group_rank",
     "impute",
     "impute_details",
-    "is_valid",
-    "plotting_positions",
     "substitute",
-    "zprelim",
 ]
 
 _TRANSFORMS = "identity, log, exp, sqrt, square"
 
 
-def cohn_numbers(result: Expr | str, censorship: Expr | str) -> Expr:
-    """Cohn numbers, one row per unique detection limit.
+def _cohn_numbers(result: Expr | str, censorship: Expr | str) -> Expr:
+    """Calculate Cohn numbers, one row per unique detection limit.
 
+    Parameters
+    ----------
+    result : polars.Expr or str
+        Numeric result values or the name of their column.
+    censorship : polars.Expr or str
+        Boolean censorship flags or the name of their column. ``True`` denotes
+        a left-censored result.
+
+    Returns
+    -------
+    polars.Expr
+        A struct expression with ``lower_dl``, ``upper_dl``, ``nuncen_above``,
+        ``nobs_below``, ``ncen_equal``, and ``prob_exceedance`` fields.
+
+    Notes
+    -----
     Returns a struct with ``lower_dl``, ``upper_dl``, ``nuncen_above``,
     ``nobs_below``, ``ncen_equal`` and ``prob_exceedance``.
 
@@ -54,9 +64,23 @@ def cohn_numbers(result: Expr | str, censorship: Expr | str) -> Expr:
     )
 
 
-def detection_limit_index(result: Expr | str, cohn: Expr | str) -> Expr:
-    """Index of the detection limit that applies to each row of ``result``.
+def _detection_limit_index(result: Expr | str, cohn: Expr | str) -> Expr:
+    """Calculate the index of the applicable detection limit for each result.
 
+    Parameters
+    ----------
+    result : polars.Expr or str
+        Numeric result values or the name of their column.
+    cohn : polars.Expr or str
+        Cohn-number struct expression, normally from :func:`_cohn_numbers`.
+
+    Returns
+    -------
+    polars.Expr
+        The zero-based detection-limit index for every result.
+
+    Notes
+    -----
     Mirrors ``wqio.ros._detection_limit_index``: the 0-based position of the
     last Cohn detection limit whose ``lower_dl`` is at or below the value, or
     ``0`` for a value below every detection limit. Censored rows therefore get
@@ -69,9 +93,23 @@ def detection_limit_index(result: Expr | str, cohn: Expr | str) -> Expr:
     )
 
 
-def group_rank(det_limit_index: Expr | str, censorship: Expr | str) -> Expr:
-    """Observation index within each detection-limit group.
+def _group_rank(det_limit_index: Expr | str, censorship: Expr | str) -> Expr:
+    """Calculate the observation index within each detection-limit group.
 
+    Parameters
+    ----------
+    det_limit_index : polars.Expr or str
+        Detection-limit indexes, normally from :func:`_detection_limit_index`.
+    censorship : polars.Expr or str
+        Boolean censorship flags or the name of their column.
+
+    Returns
+    -------
+    polars.Expr
+        The one-based observation rank within each detection-limit group.
+
+    Notes
+    -----
     Mirrors ``wqio.ros.group_rank``; needs ``detection_limit_index`` as its first
     input.
     """
@@ -82,19 +120,36 @@ def group_rank(det_limit_index: Expr | str, censorship: Expr | str) -> Expr:
     )
 
 
-def plotting_positions(
+def _plotting_positions(
     result: Expr | str,
     censorship: Expr | str,
     cohn: Expr | str | None = None,
 ) -> Expr:
-    """Hazen-style plotting positions for the observed values.
+    """Calculate Hazen-style plotting positions for observed values.
 
+    Parameters
+    ----------
+    result : polars.Expr or str
+        Numeric result values or the name of their column.
+    censorship : polars.Expr or str
+        Boolean censorship flags or the name of their column.
+    cohn : polars.Expr or str, optional
+        Cohn-number struct expression. When omitted, it is calculated from
+        ``result`` and ``censorship``.
+
+    Returns
+    -------
+    polars.Expr
+        Plotting positions for the input observations.
+
+    Notes
+    -----
     ``cohn`` is optional; when omitted it is computed from ``result`` and
     ``censorship`` for you. Pass it explicitly to avoid recomputing it inside
     the expression.
     """
     if cohn is None:
-        cohn = cohn_numbers(result, censorship)
+        cohn = _cohn_numbers(result, censorship)
     return register_plugin_function(
         plugin_path=LIB,
         function_name="plotting_positions",
@@ -102,8 +157,19 @@ def plotting_positions(
     )
 
 
-def zprelim(plotting_positions: Expr | str) -> Expr:
-    """Normal-score transform of the plotting positions."""
+def _zprelim(plotting_positions: Expr | str) -> Expr:
+    """Transform plotting positions to normal scores.
+
+    Parameters
+    ----------
+    plotting_positions : polars.Expr or str
+        Plotting positions or the name of their column.
+
+    Returns
+    -------
+    polars.Expr
+        The normal-score transformation of ``plotting_positions``.
+    """
     return register_plugin_function(
         plugin_path=LIB,
         function_name="zprelim",
@@ -118,8 +184,29 @@ def estimate(
     transform_in: str = "log",
     transform_out: str = "exp",
 ) -> Expr:
-    """ROS-estimated values for the censored rows.
+    """Estimate censored values with regression on order statistics.
 
+    Parameters
+    ----------
+    zprelim : polars.Expr or str
+        Normal scores, normally from :func:`_zprelim`.
+    result : polars.Expr or str
+        Numeric result values or the name of their column.
+    censorship : polars.Expr or str
+        Boolean censorship flags or the name of their column.
+    transform_in : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'log'
+        Transformation applied before fitting the regression.
+    transform_out : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'exp'
+        Transformation applied to fitted values.
+
+    Returns
+    -------
+    polars.Expr
+        Estimated values for censored rows and unchanged values for uncensored
+        rows.
+
+    Notes
+    -----
     Fits result on the normal deviates of the uncensored observations, then
     predicts the censored ones. Uncensored rows are passed through unchanged,
     except when ``floor`` is unset and the observation is non-positive -- those
@@ -135,13 +222,30 @@ def estimate(
     )
 
 
-def is_valid(
+def _is_valid(
     censorship: Expr | str,
     min_uncensored: int = 2,
     max_fraction_censored: float = 0.8,
 ) -> Expr:
-    """Whether ROS is applicable to this group.
+    """Determine whether ROS is applicable to a group.
 
+    Parameters
+    ----------
+    censorship : polars.Expr or str
+        Boolean censorship flags or the name of their column.
+    min_uncensored : int, default 2
+        Minimum number of uncensored observations required.
+    max_fraction_censored : float, default 0.8
+        Largest permitted fraction of censored observations.
+
+    Returns
+    -------
+    polars.Expr
+        A scalar Boolean expression indicating whether the group is valid for
+        ROS.
+
+    Notes
+    -----
     True when there are at least ``min_uncensored`` uncensored observations and
     no more than ``max_fraction_censored`` of the data is censored.
     """
@@ -167,8 +271,36 @@ def impute(
     transform_out: str = "exp",
     floor: float | None = None,
 ) -> Expr:
-    """Fill in censored results by regression on order statistics.
+    """Impute left-censored results with regression on order statistics.
 
+    Parameters
+    ----------
+    result : polars.Expr or str
+        Numeric result values or the name of their column.
+    censorship : polars.Expr or str
+        Boolean censorship flags or the name of their column. ``True`` denotes
+        a left-censored result.
+    min_uncensored : int, default 2
+        Minimum number of uncensored observations required for ROS.
+    max_fraction_censored : float, default 0.8
+        Largest censored fraction allowed for ROS.
+    substitution_fraction : float, default 0.5
+        Multiplier for the minimum uncensored result when ROS is not
+        applicable.
+    transform_in : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'log'
+        Transformation applied before fitting the regression.
+    transform_out : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'exp'
+        Transformation applied to fitted values.
+    floor : float, optional
+        Lower bound for imputed values.
+
+    Returns
+    -------
+    polars.Expr
+        The imputed result expression.
+
+    Notes
+    -----
     This is the one-shot equivalent of the whole ROS pipeline: Cohn numbers,
     plotting positions, normal scores, regression, substitution. When ROS is not
     applicable the function falls back to simple substitution at
@@ -206,8 +338,37 @@ def substitute(
     transform_out: str = "exp",
     floor: float | None = None,
 ) -> Expr:
-    """Simple substitution, without the ROS regression.
+    """Replace censored results without fitting a ROS regression.
 
+    Parameters
+    ----------
+    result : polars.Expr or str
+        Numeric result values or the name of their column.
+    censorship : polars.Expr or str
+        Boolean censorship flags or the name of their column. ``True`` denotes
+        a left-censored result.
+    min_uncensored : int, default 2
+        Minimum number of uncensored observations. Retained for compatibility
+        with :func:`impute`.
+    max_fraction_censored : float, default 0.8
+        Largest censored fraction. Retained for compatibility with
+        :func:`impute`.
+    substitution_fraction : float, default 0.5
+        Multiplier applied to the minimum uncensored result.
+    transform_in : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'log'
+        Transformation applied before substitution.
+    transform_out : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'exp'
+        Transformation applied after substitution.
+    floor : float, optional
+        Lower bound for substituted values.
+
+    Returns
+    -------
+    polars.Expr
+        The substituted result expression.
+
+    Notes
+    -----
     Censored results become ``substitution_fraction`` times the minimum
     uncensored result. Included in ``impute`` as the fallback path; call it
     directly to compare the two methods.
@@ -238,8 +399,42 @@ def impute_details(
     transform_out: str = "exp",
     floor: float | None = None,
 ) -> Expr:
-    """Every ROS intermediate value, for inspecting how ``impute`` decided.
+    """Return ROS intermediate values used by :func:`impute`.
 
+    Parameters
+    ----------
+    result : polars.Expr or str
+        Numeric result values or the name of their column.
+    censorship : polars.Expr or str
+        Boolean censorship flags or the name of their column. ``True`` denotes
+        a left-censored result.
+    min_uncensored : int, default 2
+        Minimum number of uncensored observations required for ROS.
+    max_fraction_censored : float, default 0.8
+        Largest censored fraction allowed for ROS.
+    substitution_fraction : float, default 0.5
+        Multiplier for the minimum uncensored result when ROS is not
+        applicable.
+    transform_in : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'log'
+        Transformation applied before fitting the regression.
+    transform_out : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'exp'
+        Transformation applied to fitted values.
+    floor : float, optional
+        Lower bound for imputed values.
+
+    Returns
+    -------
+    polars.Expr
+        A struct expression containing the ROS intermediate values and final
+        result.
+
+    Raises
+    ------
+    polars.exceptions.ComputeError
+        If the input contains no censored values.
+
+    Notes
+    -----
     Returns a struct with ``result``, ``censored``, ``det_limit_index``,
     ``rank``, ``plot_pos``, ``zprelim``, ``estimated`` and ``final``. The rows
     are in ROS order -- sorted by result -- matching ``wqio.ros._do_ros``; sort
@@ -247,8 +442,7 @@ def impute_details(
 
     Rows with a missing result are omitted, as are censored results above the
     maximum uncensored result, so the height can be less than the input's.
-    Raises if nothing in the input is censored: there would be no regression to
-    report, so use ``impute`` for that case.
+    If nothing in the input is censored, use ``impute`` instead.
     """
     kwargs: dict[str, Any] = {
         "min_uncensored": min_uncensored,
@@ -263,4 +457,73 @@ def impute_details(
         function_name="impute_details",
         args=[result, censorship],
         kwargs=kwargs,
+    )
+
+
+def impute_dataframe(
+    df: DataFrame,
+    result: Expr | str,
+    censorship: Expr | str,
+    over_columns: Expr | list[Expr | str] | None = None,
+    min_uncensored: int = 2,
+    max_fraction_censored: float = 0.8,
+    substitution_fraction: float = 0.5,
+    transform_in: str = "log",
+    transform_out: str = "exp",
+    floor: float | None = None,
+    output_name: str = "imputed",
+) -> DataFrame:
+    """Impute left-censored data in a DataFrame.
+
+    Parameters
+    ----------
+    df : polars.DataFrame
+        DataFrame containing the result and censorship columns.
+    result : polars.Expr or str
+        Numeric result values or the name of their column.
+    censorship : polars.Expr or str
+        Boolean censorship flags or the name of their column. ``True`` denotes
+        a left-censored result.
+    over_columns : polars.Expr or list of polars.Expr or str, optional
+        Grouping columns. ROS is applied independently to each group.
+    min_uncensored : int, default 2
+        Minimum number of uncensored observations required for ROS.
+    max_fraction_censored : float, default 0.8
+        Largest censored fraction allowed for ROS.
+    substitution_fraction : float, default 0.5
+        Multiplier for the minimum uncensored result when ROS is not
+        applicable.
+    transform_in : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'log'
+        Transformation applied before fitting the regression.
+    transform_out : {'identity', 'log', 'exp', 'sqrt', 'square'}, default 'exp'
+        Transformation applied to fitted values.
+    floor : float, optional
+        Lower bound for imputed values.
+    output_name : str, default 'imputed'
+        Name for the output column.
+
+    Returns
+    -------
+    polars.DataFrame
+        A DataFrame with the grouping columns, censorship column, and imputed
+        result column.
+    """
+
+    ros_expr = impute(
+        result,
+        censorship,
+        min_uncensored,
+        max_fraction_censored,
+        substitution_fraction,
+        transform_in,
+        transform_out,
+        floor,
+    )
+    if over_columns:
+        ros_expr = ros_expr.over(over_columns)
+
+    return df.select(
+        over_columns,
+        censorship,
+        ros_expr.alias(output_name),
     )

@@ -45,6 +45,7 @@ wheels/
 *.egg
 .eggs/
 pip-wheel-metadata/
+great-docs/
 
 # Written locally whenever a tool is invoked through `uv run`. This project
 # pins Rust dependencies via `Cargo.lock` but does not pin its Python ones, so

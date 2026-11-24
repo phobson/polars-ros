@@ -19,16 +19,10 @@ from importlib.metadata import PackageNotFoundError, version
 from . import bootstrap, ros
 from .bootstrap import ci, fit
 from .ros import (
-    cohn_numbers,
-    detection_limit_index,
     estimate,
-    group_rank,
     impute,
     impute_details,
-    is_valid,
-    plotting_positions,
     substitute,
-    zprelim,
 )
 
 try:
@@ -41,16 +35,9 @@ except PackageNotFoundError:  # pragma: no cover - only when run from a source t
 __all__ = [
     "bootstrap",
     "ci",
-    "cohn_numbers",
-    "detection_limit_index",
     "estimate",
-    "fit",
-    "group_rank",
     "impute",
     "impute_details",
-    "is_valid",
-    "plotting_positions",
     "ros",
     "substitute",
-    "zprelim",
 ]

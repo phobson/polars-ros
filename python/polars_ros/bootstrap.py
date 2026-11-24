@@ -35,12 +35,35 @@ def ci(
     method: str = "percentile",
     seed: int | None = None,
 ) -> Expr:
-    """A two-sided bootstrap confidence interval for ``statistic(values)``.
+    """Calculate a two-sided bootstrap confidence interval.
 
+    Parameters
+    ----------
+    values : polars.Expr or str
+        Values to resample or the name of their column.
+    statistic : {'mean', 'median', 'sum', 'min', 'max', 'std', 'var', 'geomean'}, \
+            default 'mean'
+        Statistic for which to calculate the interval.
+    niter : int, default 10000
+        Number of bootstrap resamples.
+    alpha : float, default 0.05
+        Two-sided confidence-level complement.
+    method : {'percentile', 'bca'}, default 'percentile'
+        Interval construction method.
+    seed : int, optional
+        Seed for reproducible resampling.
+
+    Returns
+    -------
+    polars.Expr
+        A scalar struct expression with ``lower`` and ``upper`` fields.
+
+    Notes
+    -----
     ``method="percentile"`` is the plain percentile interval.
     ``method="bca"`` is bias-corrected and accelerated, falling back to the
     percentile interval when the accelerated interval fails to contain the
-    bootstrap mean.
+    bootstrap value.
 
     Returns a length-one struct with ``lower`` and ``upper``. In a ``select`` or
     ``agg`` context that collapses to a single row::
@@ -81,8 +104,33 @@ def fit(
     ylog: bool = False,
     seed: int | None = None,
 ) -> Expr:
-    """A bootstrapped straight-line fit of ``y`` on ``x``, with a confidence band.
+    """Fit a bootstrapped straight line with a confidence band.
 
+    Parameters
+    ----------
+    x : polars.Expr or str
+        Predictor values or the name of their column.
+    y : polars.Expr or str
+        Response values or the name of their column.
+    niter : int, default 10000
+        Number of bootstrap resamples.
+    alpha : float, default 0.05
+        Two-sided confidence-level complement.
+    xlog : bool, default False
+        Whether to fit against ``log(x)``.
+    ylog : bool, default False
+        Whether to fit ``log(y)`` and back-transform the estimates.
+    seed : int, optional
+        Seed for reproducible resampling.
+
+    Returns
+    -------
+    polars.Expr
+        A struct expression with ``xhat``, ``yhat``, ``lower``, and ``upper``
+        fields.
+
+    Notes
+    -----
     Returns a struct with ``xhat``, ``yhat``, ``lower`` and ``upper``, with one
     row per input row and in the input's row order -- unlike ``wqio.bootstrap.fit``,
     which returns ``x`` sorted ascending.
